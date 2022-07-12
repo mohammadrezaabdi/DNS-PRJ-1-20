@@ -1,0 +1,10 @@
+{
+  "server": {
+    "IP": "0.0.0.0",
+    "PORT": 8001,
+    "BUFFER_SIZE": 1024
+  },
+  "filesystem": {
+    "root_path": "../files"
+  }
+}
