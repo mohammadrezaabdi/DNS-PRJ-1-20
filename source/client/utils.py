@@ -55,7 +55,7 @@ def add_nonce(packet: bytes) -> tuple[bytes, str]:
 def check_nonce(packet: bytes, nonce: str):
     # the last bytes of packet should be nonce
     packet_nonce = packet.split(consts.packet_delimiter_byte)[-1]
-    if packet_nonce != nonce:
+    if packet_nonce.decode('ascii') != nonce:
         raise Exception(consts.nonce_not_match_error)
 
 

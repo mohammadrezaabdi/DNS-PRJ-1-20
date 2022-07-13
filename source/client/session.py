@@ -33,7 +33,8 @@ def signup(session: Session, args: [str], conn: socket):
         [server alive] Server -> Client: E(PU_c, msg || N_c || E(PR_s, M))
     """
     # send & receive client hello & server hello packets
-    share_pubkeys(session, conn)
+    if not session.server_pubkey:
+        share_pubkeys(session, conn)
 
     # client auth packet
     # set user id

@@ -3,7 +3,6 @@ import log
 import logging
 from user import User, create_user
 from socket import socket
-from database import db
 import traceback
 
 log.init()
@@ -27,19 +26,19 @@ def login(session: Session, args: [str], server_key_pair: RSA, conn: socket):
 def signup(session: Session, args: [str], server_key_pair: RSA, conn: socket):
     try:
         # create user
-        user = create_user(db=db, uid=args[0], firstname=args[1], lastname=args[2], password=args[3],
+        user = create_user(uid=args[0], firstname=args[1], lastname=args[2], password=args[3],
                            user_pubkey=session.client_pubkey.exportKey())
         session.user = user
 
         msg = consts.signup_success_msg.encode("ascii")
         # add client nonce
         msg += consts.packet_delimiter_byte + args[-1].encode("ascii")
-        secure_send(msg.encode("ascii"), conn, enc_key=session.client_pubkey, signature_key=server_key_pair)
+        secure_send(msg, conn, enc_key=session.client_pubkey, signature_key=server_key_pair)
     except Exception as e:
-        msg = consts.internal_server_error_msg.encode("ascii")
+        msg = str(e).encode("ascii")
         # add client nonce
         msg += consts.packet_delimiter_byte + args[-1].encode("ascii")
-        secure_send(msg.encode("ascii"), conn, enc_key=session.client_pubkey, signature_key=server_key_pair)
+        secure_send(msg, conn, enc_key=session.client_pubkey, signature_key=server_key_pair)
         raise e
 
 
@@ -53,12 +52,13 @@ def share_pubkeys(session: Session, server_key_pair: RSA, conn: socket):
 
 def server_handshake(session: Session, server_key_pair: RSA, conn: socket):
     # get client public key
-    share_pubkeys(session, server_key_pair, conn)
+    if not session.client_pubkey:
+        share_pubkeys(session, server_key_pair, conn)
 
     # get client command packet (login or signup)
     packet = recvall(conn)
     if not packet:
-        return
+        raise Exception(consts.end_client_connection)
 
     cmd = secure_receive(packet, enc_key=server_key_pair, sign_key=session.client_pubkey)
 
@@ -74,21 +74,23 @@ def server_handshake(session: Session, server_key_pair: RSA, conn: socket):
 def handle_client(session: Session, server_key_pair: RSA, conn: socket):
     logger.debug("handling new client")
     with conn:
-        try:
-            while True:
+        while True:
+            try:
                 if not session.session_key:
                     server_handshake(session, server_key_pair, conn)
                     continue
 
                 packet = recvall(conn)
                 if not packet:
+                    raise Exception(consts.end_client_connection)
+
+            except Exception as e:
+                if consts.end_client_connection == str(e):
+                    logger.info(str(e))
                     return
+                logger.error(str(e))
+                print(traceback.format_exc())
 
-        except Exception as e:
-            logger.error(str(e))
-            print(traceback.format_exc())
-            raise e
-
-        finally:
-            if session.user:
-                sessions.pop(session.user.id)
+            finally:
+                if session.user:
+                    sessions.pop(session.user.id)

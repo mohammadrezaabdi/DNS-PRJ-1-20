@@ -4,6 +4,16 @@ import enum
 from database import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    firstname = Column(String, unique=False, index=True)
+    lastname = Column(String, unique=False, index=True)
+    password = Column(String)
+    pubkey = Column(BINARY)
+
+
 class Access(enum.Enum):
     read = 'r'
     read_write = 'rw'
