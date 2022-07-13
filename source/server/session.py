@@ -1,48 +1,58 @@
 from utils import *
-import log
-import logging
-from user import User, create_user
+from user import *
 from socket import socket
-import traceback
-
-log.init()
-logger = logging.getLogger("client")
+import os
+import pbkdf2
+from Crypto.PublicKey import RSA
 
 
 class Session:
-    def __init__(self, user: User = None):
-        self.user = user
+    def __init__(self):
+        self.user = None
         self.session_key = None
         self.client_pubkey = None
 
 
-sessions = dict[int, Session]
+users: dict[int, Session] = {}
 
 
-def login(session: Session, args: [str], server_key_pair: RSA, conn: socket):
-    pass
-
-
-def signup(session: Session, args: [str], server_key_pair: RSA, conn: socket):
+def login(session: Session, args: [str], server_key_pair: RsaKey, conn: socket):
     try:
-        # create user
-        user = create_user(uid=args[0], firstname=args[1], lastname=args[2], password=args[3],
-                           user_pubkey=session.client_pubkey.exportKey())
+        # check if user exists
+        user = get_user(args[0])
+        if not user:
+            raise Exception(consts.user_not_found)
+        # check user password
+        authenticate(user, args[1])
+        # add user to logged-in users
         session.user = user
+        users[user.id] = session
+        # generate session key from client password and random salt
+        session.session_key = pbkdf2.PBKDF2(passphrase=user.password, salt=os.urandom(16)).read(32)
+        # todo set group and default path
+        msg = consts.login_success.format(user.id, "work", "/")
+        msg = msg.encode('ascii') + consts.packet_delimiter_byte + session.session_key
 
-        msg = consts.signup_success_msg.encode("ascii")
-        # add client nonce
-        msg += consts.packet_delimiter_byte + args[-1].encode("ascii")
-        secure_send(msg, conn, enc_key=session.client_pubkey, signature_key=server_key_pair)
+        secure_reply(msg, conn, session.client_pubkey, server_key_pair, args[-1])
+
     except Exception as e:
-        msg = str(e).encode("ascii")
-        # add client nonce
-        msg += consts.packet_delimiter_byte + args[-1].encode("ascii")
-        secure_send(msg, conn, enc_key=session.client_pubkey, signature_key=server_key_pair)
+        secure_reply(str(e), conn, session.client_pubkey, server_key_pair, args[-1])
         raise e
 
 
-def share_pubkeys(session: Session, server_key_pair: RSA, conn: socket):
+def signup(session: Session, args: [str], server_key_pair: RsaKey, conn: socket):
+    try:
+        # create user
+        create_user(uid=args[0], firstname=args[1], lastname=args[2], password=args[3])
+        # send success message
+        secure_reply(consts.signup_success_msg, conn, session.client_pubkey, server_key_pair, args[-1])
+
+    except Exception as e:
+        secure_reply(str(e), conn, session.client_pubkey, server_key_pair, args[-1])
+        raise e
+
+
+def share_pubkeys(session: Session, server_key_pair: RsaKey, conn: socket):
     # client hello packet
     client_pubkey = recvall(conn)
     session.client_pubkey = RSA.importKey(client_pubkey)
@@ -50,7 +60,7 @@ def share_pubkeys(session: Session, server_key_pair: RSA, conn: socket):
     conn.sendall(server_key_pair.publickey().exportKey())
 
 
-def server_handshake(session: Session, server_key_pair: RSA, conn: socket):
+def server_handshake(session: Session, server_key_pair: RsaKey, conn: socket):
     # get client public key
     if not session.client_pubkey:
         share_pubkeys(session, server_key_pair, conn)
@@ -69,28 +79,3 @@ def server_handshake(session: Session, server_key_pair: RSA, conn: socket):
         signup(session, cmd_args[1:], server_key_pair, conn)
     else:
         raise Exception(consts.unknown_packet_err)
-
-
-def handle_client(session: Session, server_key_pair: RSA, conn: socket):
-    logger.debug("handling new client")
-    with conn:
-        while True:
-            try:
-                if not session.session_key:
-                    server_handshake(session, server_key_pair, conn)
-                    continue
-
-                packet = recvall(conn)
-                if not packet:
-                    raise Exception(consts.end_client_connection)
-
-            except Exception as e:
-                if consts.end_client_connection == str(e):
-                    logger.info(str(e))
-                    return
-                logger.error(str(e))
-                print(traceback.format_exc())
-
-            finally:
-                if session.user:
-                    sessions.pop(session.user.id)

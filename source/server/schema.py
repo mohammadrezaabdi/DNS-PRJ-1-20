@@ -7,7 +7,6 @@ class User(BaseModel):
     firstname: str
     lastname: str
     password: str
-    pubkey: bytes = None
 
     class Config:
         orm_mode = True

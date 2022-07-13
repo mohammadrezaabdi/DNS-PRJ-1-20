@@ -11,7 +11,6 @@ class User(Base):
     firstname = Column(String, unique=False, index=True)
     lastname = Column(String, unique=False, index=True)
     password = Column(String)
-    pubkey = Column(BINARY)
 
 
 class Access(enum.Enum):

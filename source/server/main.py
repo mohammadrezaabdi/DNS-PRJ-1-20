@@ -2,9 +2,8 @@ import json
 import logging
 import log
 from munch import DefaultMunch
-from server import Server
-from session import handle_client
-from database import engine, SessionLocal
+from server import Server, handle_client
+from database import engine
 import model
 
 log.init()
@@ -15,10 +14,11 @@ with open('config.json') as f:
 
 SERVER = DefaultMunch.fromDict(conf['server'])
 
+# create tables
+model.Base.metadata.create_all(bind=engine)
+
 
 def main():
-    # create tables
-    model.Base.metadata.create_all(bind=engine)
     # start server
     filesystem_server = Server(SERVER.IP, SERVER.PORT, handle_client, logger)
     filesystem_server.listen()

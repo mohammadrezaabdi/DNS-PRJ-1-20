@@ -1,3 +1,4 @@
+from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.PublicKey.RSA import RsaKey
 from Crypto.Signature.pkcs1_15 import PKCS115_SigScheme
@@ -8,7 +9,7 @@ from random import randrange
 import sys
 import consts
 import funcy
-import socket
+from socket import socket
 from typing import Union
 
 with open('config.json') as f:
@@ -79,7 +80,7 @@ def decrypt_rsa(packet: bytes, dec_key: RsaKey):
     return decrypted_packet
 
 
-def secure_send(packet: bytes, conn: socket.socket, enc_key: Union[RsaKey, bytes], signature_key: RsaKey = None):
+def secure_send(packet: bytes, conn: socket, enc_key: Union[RsaKey, bytes], signature_key: RsaKey = None):
     if signature_key is not None:
         packet = sign_packet(packet, signature_key)
     # encrypt packet with public key (Confidentiality)
@@ -87,14 +88,6 @@ def secure_send(packet: bytes, conn: socket.socket, enc_key: Union[RsaKey, bytes
         encrypted_packet = encrypt_rsa(packet, enc_key)
     # send encrypted packet
     conn.sendall(encrypted_packet)
-
-
-def secure_reply(msg: bytes, conn: socket.socket, enc_key: Union[RsaKey, bytes], server_key_pair: RsaKey,
-                 nonce: str = ''):
-    # add client nonce
-    if nonce:
-        msg += consts.packet_delimiter_byte + nonce.encode("ascii")
-    secure_send(msg, conn, enc_key=enc_key, signature_key=server_key_pair)
 
 
 def secure_receive(encrypted_packet: bytes, enc_key: Union[RsaKey, bytes], sign_key: RsaKey = None,

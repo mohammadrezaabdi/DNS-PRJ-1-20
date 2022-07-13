@@ -11,6 +11,6 @@ SIGNUP = re.compile(r'^signup\s+\d+\s+\w+\s+\w+\s+[\w\W]+')
 socket_start_connection_message_msg = "you've connected successfully to server\nnow you can login or signup."
 
 unknown_command_err = 'unknown command'
-
+login_success = re.compile(r"^you've successfully logged in\.\nuser id:\d+\ngroup:[\w\W]+\ncurrent path:.*")
 packet_corrupted_err = 'received packet is not valid'
 nonce_not_match_error = 'received packet is not from current session'

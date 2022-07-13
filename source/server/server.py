@@ -1,11 +1,15 @@
 import concurrent.futures
-import logging
-import socket
 from typing import Callable, Any
-
+import log
+import logging
 from Crypto.PublicKey import RSA
+from session import Session, server_handshake, users
+from utils import *
+import consts
+import traceback
 
-from session import Session
+log.init()
+logger = logging.getLogger("client")
 
 
 class Server:
@@ -33,3 +37,30 @@ class Server:
                 conn, addr = self.sock.accept()
                 self.logger.info(f"accepted new client with address {addr}")
                 thread_pool.submit(self.handler, Session(), self.key_pair, conn)
+
+
+def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
+    logger.debug("handling new client")
+    with conn:
+        while True:
+            try:
+                if not session.session_key:
+                    server_handshake(session, server_key_pair, conn)
+                    continue
+
+                packet = recvall(conn)
+                if not packet:
+                    raise Exception(consts.end_client_connection)
+
+                # todo handle other commands
+
+            except Exception as e:
+                if consts.end_client_connection == str(e):
+                    logger.info(str(e))
+                    return
+                logger.error(str(e))
+                print(traceback.format_exc())
+
+            finally:
+                if session.user:
+                    users.pop(session.user.id)
