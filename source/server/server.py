@@ -3,7 +3,7 @@ from typing import Callable, Any
 import log
 import logging
 from Crypto.PublicKey import RSA
-from session import Session, server_handshake, users
+from session import *
 from utils import *
 import consts
 import traceback
@@ -39,28 +39,52 @@ class Server:
                 thread_pool.submit(self.handler, Session(), self.key_pair, conn)
 
 
+def client_authentication(session: Session, server_key_pair: RsaKey, conn: socket):
+    # get client public key
+    if not session.client_pubkey:
+        share_pubkeys(session, server_key_pair, conn)
+
+    # get client command packet (login or signup)
+    cmd = secure_receive(enc_key=server_key_pair, sign_key=session.client_pubkey, conn=conn)
+
+    cmd_args = cmd.decode("ascii").split(consts.packet_delimiter_str)
+    if consts.LOGIN.match(cmd_args[0]):
+        login(session, cmd_args[1:], server_key_pair, conn)
+    elif consts.SIGNUP.match(cmd_args[0]):
+        signup(session, cmd_args[1:], server_key_pair, conn)
+    else:
+        raise Exception(consts.unknown_packet_err)
+
+
 def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
     logger.debug("handling new client")
     with conn:
-        while True:
-            try:
-                if not session.session_key:
-                    server_handshake(session, server_key_pair, conn)
-                    continue
+        try:
+            while True:
+                try:
+                    if not session.session_key:
+                        client_authentication(session, server_key_pair, conn)
+                        continue
 
-                packet = recvall(conn)
-                if not packet:
-                    raise Exception(consts.end_client_connection)
+                    # get command from client securely
+                    cmd = secure_receive(enc_key=session.session_key, sign_key=session.client_pubkey, conn=conn)
+                    cmd_args = cmd.decode("ascii").split(consts.packet_delimiter_str)
+                    # handle client commands
+                    if 'test' == cmd_args[0]:
+                        msg = 'tested'
+                    # todo handle other commands
 
-                # todo handle other commands
+                    # send message to client
+                    secure_reply(msg.encode('ascii'), conn, enc_key=session.session_key, sign_key=server_key_pair,
+                                 nonce=cmd_args[-1])
 
-            except Exception as e:
-                if consts.end_client_connection == str(e):
-                    logger.info(str(e))
-                    return
-                logger.error(str(e))
-                print(traceback.format_exc())
+                except Exception as e:
+                    if consts.end_connection == str(e):
+                        logger.info(str(e))
+                        return
+                    logger.error(str(e))
+                    print(traceback.format_exc())
 
-            finally:
-                if session.user:
-                    users.pop(session.user.id)
+        finally:
+            if session.user:
+                users.pop(session.user.id)

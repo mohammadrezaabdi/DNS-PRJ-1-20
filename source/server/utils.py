@@ -10,15 +10,27 @@ import consts
 import funcy
 import socket
 from typing import Union
+import pyaes
+from typing import Optional
+import secrets
 
 with open('config.json') as f:
     conf = json.load(f)
 
-BUFF_SIZE = conf['server']['BUFFER_SIZE']
+BUFF_SIZE = 4096
+AES_M_LEN = 256
 
 
 def recvall(sock):
     return sock.recv(BUFF_SIZE)
+
+
+def int_to_bytes(number: int) -> bytes:
+    return number.to_bytes(length=(8 + (number + (number < 0)).bit_length()) // 8, byteorder='big', signed=True)
+
+
+def int_from_bytes(binary_data: bytes) -> Optional[int]:
+    return int.from_bytes(binary_data, byteorder='big', signed=True)
 
 
 def sign_packet(packet: bytes, signature_key: RsaKey) -> bytes:
@@ -79,29 +91,51 @@ def decrypt_rsa(packet: bytes, dec_key: RsaKey):
     return decrypted_packet
 
 
+def encrypt_ase(packet: bytes, enc_key: bytes):
+    iv = secrets.randbits(AES_M_LEN)
+    aes = pyaes.AESModeOfOperationCTR(enc_key, pyaes.Counter(iv))
+    encrypted_packet = aes.encrypt(packet) + consts.packet_delimiter_byte + int_to_bytes(iv)
+    return encrypted_packet
+
+
+def decrypt_ase(packet: bytes, enc_key: bytes):
+    packets = packet.split(consts.packet_delimiter_byte)
+    iv = int_from_bytes(packets[1])
+    aes = pyaes.AESModeOfOperationCTR(enc_key, pyaes.Counter(iv))
+    decrypted_packet = aes.decrypt(packets[0])
+    return decrypted_packet
+
+
 def secure_send(packet: bytes, conn: socket.socket, enc_key: Union[RsaKey, bytes], signature_key: RsaKey = None):
     if signature_key is not None:
         packet = sign_packet(packet, signature_key)
     # encrypt packet with public key (Confidentiality)
     if type(enc_key) == RsaKey:
         encrypted_packet = encrypt_rsa(packet, enc_key)
+    else:
+        encrypted_packet = encrypt_ase(packet, enc_key)
     # send encrypted packet
     conn.sendall(encrypted_packet)
 
 
-def secure_reply(msg: bytes, conn: socket.socket, enc_key: Union[RsaKey, bytes], server_key_pair: RsaKey,
+def secure_reply(msg: bytes, conn: socket.socket, enc_key: Union[RsaKey, bytes], sign_key: RsaKey,
                  nonce: str = ''):
     # add client nonce
     if nonce:
         msg += consts.packet_delimiter_byte + nonce.encode("ascii")
-    secure_send(msg, conn, enc_key=enc_key, signature_key=server_key_pair)
+    secure_send(msg, conn, enc_key=enc_key, signature_key=sign_key)
 
 
-def secure_receive(encrypted_packet: bytes, enc_key: Union[RsaKey, bytes], sign_key: RsaKey = None,
+def secure_receive(conn: socket.socket, enc_key: Union[RsaKey, bytes], sign_key: RsaKey = None,
                    nonce: str = '') -> bytes:
+    encrypted_packet = recvall(conn)
+    if not encrypted_packet:
+        raise Exception(consts.end_connection)
     # decrypt packet with private server key
     if type(enc_key) == RsaKey:
         packet = decrypt_rsa(encrypted_packet, enc_key)
+    else:
+        packet = decrypt_ase(encrypted_packet, enc_key)
     # check signature
     if sign_key is not None:
         check_signature(packet, sign_key)

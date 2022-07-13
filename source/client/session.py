@@ -12,6 +12,12 @@ class Session:
         self.server_pubkey = None
 
 
+def test_aes(session: Session, cmd: str, conn: socket) -> str:
+    response = send_cmd_receive_message(session, cmd, conn)
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('ascii')
+    return msg
+
+
 def login(session: Session, cmd: str, conn: socket) -> str:
     """
     user login protocol:
@@ -24,16 +30,7 @@ def login(session: Session, cmd: str, conn: socket) -> str:
     if not session.server_pubkey:
         share_pubkeys(session, conn)
 
-    # insert delimiter im command args
-    cmd = consts.packet_delimiter_str.join(cmd.split(' '))
-
-    # client auth packet
-    send_cmd_secure(session, cmd, conn)
-
-    # server live packet
-    response_packet = recvall(conn)
-
-    key_share = secure_receive(response_packet, session.user_key_pair, session.server_pubkey, session.nonce)
+    key_share = send_cmd_receive_message(session, cmd, conn)
     key_share_args = key_share.split(consts.packet_delimiter_byte)
     msg = key_share_args[0].decode('ascii')
 
@@ -57,28 +54,33 @@ def signup(session: Session, cmd: str, conn: socket) -> str:
     if not session.server_pubkey:
         share_pubkeys(session, conn)
 
-    # insert delimiter im command args
-    cmd = consts.packet_delimiter_str.join(cmd.split(' '))
-
-    # client reg packet
-    send_cmd_secure(session, cmd, conn)
-
-    # server live packet
-    response_packet = recvall(conn)
-
-    server_alive = secure_receive(response_packet, session.user_key_pair, session.server_pubkey, session.nonce)
+    server_alive = send_cmd_receive_message(session, cmd, conn)
     hello_server_args = server_alive.decode("ascii").split(consts.packet_delimiter_str)
 
     # return server message
     return hello_server_args[0]
 
 
-def send_cmd_secure(session: Session, cmd: str, conn: socket):
-    packet = cmd.encode("ascii")
+def secure_send_cmd_with_nonce(session: Session, cmd: str, conn: socket, enc_key: Union[bytes, RsaKey],
+                               sign_key: RsaKey):
+    # insert delimiter im command args
+    packet = consts.packet_delimiter_str.join(cmd.split(' ')).encode('ascii')
     # add nonce to the packet (Server Availability)
     packet, session.nonce = add_nonce(packet)
     # send encrypted packet to client (Confidentiality, Signature)
-    secure_send(packet, conn, session.server_pubkey, session.user_key_pair)
+    secure_send(packet, conn, enc_key, sign_key)
+
+
+def send_cmd_receive_message(session: Session, cmd: str, conn: socket) -> bytes:
+    if not session.session_key:
+        secure_send_cmd_with_nonce(session, cmd, conn, session.server_pubkey, session.user_key_pair)
+    else:
+        secure_send_cmd_with_nonce(session, cmd, conn, session.session_key, session.user_key_pair)
+
+    if not session.session_key:
+        return secure_receive(conn, session.user_key_pair, session.server_pubkey, session.nonce)
+    else:
+        return secure_receive(conn, session.session_key, session.server_pubkey, session.nonce)
 
 
 def share_pubkeys(session: Session, conn: socket):
