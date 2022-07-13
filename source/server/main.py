@@ -2,7 +2,7 @@ import json
 import logging
 import log
 from munch import DefaultMunch
-from server import Server, handle_client
+from server_handler import Server, handle_client
 from database import engine
 import model
 

@@ -1,7 +1,7 @@
-from utils import *
+from common.utils import *
 from socket import socket
 from Crypto.PublicKey import RSA
-
+import consts
 
 class Session:
     def __init__(self, uid=0):

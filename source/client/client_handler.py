@@ -4,6 +4,7 @@ import traceback
 from munch import DefaultMunch
 from session import *
 import socket
+import consts
 
 
 def handle_client(session: Session, server: DefaultMunch):
@@ -39,6 +40,8 @@ def handle_client_cli(session: Session, conn: socket):
                 print(test_aes(session, cmd, conn))
             # todo other commands
 
+        except EOFError:
+            return
         except Exception as e:
             if consts.end_connection == str(e):
                 print(str(e))
