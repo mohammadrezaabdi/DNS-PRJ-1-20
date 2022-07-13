@@ -4,6 +4,7 @@ import logging
 from user import User, create_user
 from socket import socket
 from database import db
+import traceback
 
 log.init()
 logger = logging.getLogger("client")
@@ -27,7 +28,7 @@ def signup(session: Session, args: [str], server_key_pair: RSA, conn: socket):
     try:
         # create user
         user = create_user(db=db, uid=args[0], firstname=args[1], lastname=args[2], password=args[3],
-                           user_pubkey=session.client_pubkey, logger=logger)
+                           user_pubkey=session.client_pubkey.exportKey())
         session.user = user
 
         msg = consts.signup_success_msg.encode("ascii")
@@ -63,9 +64,9 @@ def server_handshake(session: Session, server_key_pair: RSA, conn: socket):
 
     cmd_args = cmd.decode("ascii").split(consts.packet_delimiter_str)
     if consts.LOGIN.match(cmd_args[0]):
-        login(session, cmd_args[1:-1], server_key_pair, conn)
+        login(session, cmd_args[1:], server_key_pair, conn)
     elif consts.SIGNUP.match(cmd_args[0]):
-        signup(session, cmd_args[1:-1], server_key_pair, conn)
+        signup(session, cmd_args[1:], server_key_pair, conn)
     else:
         raise Exception(consts.unknown_packet_err)
 
@@ -85,6 +86,7 @@ def handle_client(session: Session, server_key_pair: RSA, conn: socket):
 
         except Exception as e:
             logger.error(str(e))
+            print(traceback.format_exc())
             raise e
 
         finally:

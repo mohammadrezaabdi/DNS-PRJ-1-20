@@ -18,11 +18,11 @@ class User(Base):
     pubkey = Column(BINARY)
 
 
-def create_user(db: Session, uid: int, firstname: str, lastname: str, user_pubkey, password: str,
-                logger: logging.Logger):
-    hashed_password = hashlib.sha256(password).digest()
-    hashed_password = binascii.hexlify(hashed_password).decode("ascii")
-    if db.query(User).filter(User.id == uid):
+def create_user(db: Session, uid: int, firstname: str, lastname: str, user_pubkey, password: str):
+    hashed_password = hashlib.sha256(password.encode('ascii')).digest()
+    hashed_password = binascii.hexlify(hashed_password).decode('ascii')
+    query = db.query(User).filter_by(id=uid)
+    if db.connection().execute(query):
         raise Exception(consts.user_duplication_error)
     db_user = User(id=uid, firstname=firstname, lastname=lastname, password=hashed_password, pubkey=user_pubkey)
     db.add(db_user)

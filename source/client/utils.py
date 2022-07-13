@@ -1,4 +1,5 @@
 from Crypto.PublicKey import RSA
+from Crypto.Random import get_random_bytes
 from Crypto.PublicKey.RSA import RsaKey
 from Crypto.Signature.pkcs1_15 import PKCS115_SigScheme
 from Crypto.Cipher import PKCS1_v1_5
@@ -7,6 +8,7 @@ import json
 from random import randrange
 import sys
 import consts
+import funcy
 from socket import socket
 from typing import Union
 
@@ -18,10 +20,6 @@ BUFF_SIZE = conf['server']['BUFFER_SIZE']
 
 def recvall(sock):
     return sock.recv(BUFF_SIZE)
-
-
-def int_to_bytes(x: int) -> bytes:
-    return x.to_bytes((x.bit_length() + 7) // 8, 'big')
 
 
 def sign_packet(packet: bytes, signature_key: RsaKey) -> bytes:
@@ -61,12 +59,33 @@ def check_nonce(packet: bytes, nonce: str):
         raise Exception(consts.nonce_not_match_error)
 
 
+def encrypt_rsa(packet: bytes, enc_key: RsaKey):
+    chunks = list(funcy.chunks(enc_key.size_in_bytes() - 11, packet))
+    # encrypt all chunks with rsa key (ECB mode)
+    encryptor = PKCS1_v1_5.new(enc_key)
+    encrypted_packet = b''
+    for chunk in chunks:
+        encrypted_packet += encryptor.encrypt(chunk)
+    return encrypted_packet
+
+
+def decrypt_rsa(packet: bytes, dec_key: RsaKey):
+    chunks = list(funcy.chunks(dec_key.size_in_bytes(), packet))
+    # decrypt all chunks with rsa key (ECB mode)
+    decryptor = PKCS1_v1_5.new(dec_key)
+    sentinel = get_random_bytes(16)
+    decrypted_packet = b''
+    for chunk in chunks:
+        decrypted_packet += decryptor.decrypt(chunk, sentinel)
+    return decrypted_packet
+
+
 def secure_send(packet: bytes, conn: socket, enc_key: Union[RsaKey, bytes], signature_key: RsaKey = None):
     if signature_key is not None:
         packet = sign_packet(packet, signature_key)
-    # encrypt packet with server public key (Confidentiality)
-    encryptor = PKCS1_v1_5.new(enc_key)
-    encrypted_packet = encryptor.encrypt(packet)
+    # encrypt packet with public key (Confidentiality)
+    if type(enc_key) == RsaKey:
+        encrypted_packet = encrypt_rsa(packet, enc_key)
     # send encrypted packet
     conn.sendall(encrypted_packet)
 
@@ -74,8 +93,8 @@ def secure_send(packet: bytes, conn: socket, enc_key: Union[RsaKey, bytes], sign
 def secure_receive(encrypted_packet: bytes, enc_key: Union[RsaKey, bytes], sign_key: RsaKey = None,
                    nonce: str = '') -> bytes:
     # decrypt packet with private server key
-    decryptor = PKCS1_v1_5.new(enc_key)
-    packet = decryptor.decrypt(encrypted_packet)
+    if type(enc_key) == RsaKey:
+        packet = decrypt_rsa(encrypted_packet, enc_key)
     # check signature
     if sign_key is not None:
         check_signature(packet, sign_key)
@@ -86,4 +105,5 @@ def secure_receive(encrypted_packet: bytes, enc_key: Union[RsaKey, bytes], sign_
             packet_without_signature = consts.packet_delimiter_byte.join(
                 packet.split(consts.packet_delimiter_byte)[:-1])
         check_nonce(packet_without_signature, nonce)
-    return packet
+    # eliminate signature from packet
+    return consts.packet_delimiter_byte.join(packet.split(consts.packet_delimiter_byte)[:-1])

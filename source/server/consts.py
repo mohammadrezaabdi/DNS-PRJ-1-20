@@ -1,6 +1,6 @@
 import re
 
-packet_delimiter_str = '\0'
+packet_delimiter_str = '\0\0'
 packet_delimiter_byte = b'\0\0'
 
 # commands
