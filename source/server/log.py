@@ -1,6 +1,6 @@
 import logging
 
-loggers = ["server"]
+loggers = ["server", "client"]
 STD_LOG_LEVEL = logging.DEBUG
 
 lock = 0

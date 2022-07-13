@@ -15,10 +15,11 @@ class File(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=False, index=True)
     path = Column(String, unique=False, index=True)
+    hash = Column(BINARY)
     owner_key = Column(BINARY)
     owner_id = Column(Integer, ForeignKey("users.id"))
 
-    owner = relationship("User",  foreign_keys=[owner_id])
+    owner = relationship("User", foreign_keys=[owner_id])
 
 
 class FACL(Base):

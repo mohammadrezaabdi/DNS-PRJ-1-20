@@ -3,14 +3,20 @@ import logging
 import socket
 from typing import Callable, Any
 
+from Crypto.PublicKey import RSA
+
+from session import Session
+
 
 class Server:
-    def __init__(self, ip: str, port: str, handler: Callable[[socket.socket], Any], logger: logging.Logger):
+    def __init__(self, ip: str, port: str, handler: Callable[[Session, RSA, socket.socket], Any],
+                 logger: logging.Logger):
         self.ip = ip
         self.port = int(port)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.logger = logger
         self.handler = handler
+        self.key_pair = RSA.generate(3072)
 
     def listen(self):
         self.logger.info("server process started")
@@ -26,4 +32,4 @@ class Server:
             while True:
                 conn, addr = self.sock.accept()
                 self.logger.info(f"accepted new client with address {addr}")
-                thread_pool.submit(self.handler, conn)
+                thread_pool.submit(self.handler, Session(), self.key_pair, conn)
