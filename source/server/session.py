@@ -1,9 +1,11 @@
-from common.utils import *
 from user import *
 from socket import socket
 import os
 import pbkdf2
 from Crypto.PublicKey import RSA
+import sys
+sys.path.append('../common')
+from utils import *
 
 
 class Session:
@@ -16,7 +18,7 @@ class Session:
 users: dict[int, Session] = {}
 
 
-def login(session: Session, args: [str], server_key_pair: RsaKey, conn: socket):
+def login(session: Session, args: list[str], server_key_pair: RsaKey, conn: socket):
     try:
         # check if user exists
         user = get_user(args[0])
@@ -41,7 +43,7 @@ def login(session: Session, args: [str], server_key_pair: RsaKey, conn: socket):
         raise e
 
 
-def signup(session: Session, args: [str], server_key_pair: RsaKey, conn: socket):
+def signup(session: Session, args: list[str], server_key_pair: RsaKey, conn: socket):
     try:
         # create user
         create_user(uid=args[0], firstname=args[1], lastname=args[2], password=args[3])

@@ -1,7 +1,9 @@
-from common.utils import *
 from socket import socket
 from Crypto.PublicKey import RSA
 import consts
+import sys
+sys.path.append('../common')
+from utils import *
 
 class Session:
     def __init__(self, uid=0):

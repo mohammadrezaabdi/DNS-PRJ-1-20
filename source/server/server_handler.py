@@ -4,16 +4,18 @@ import log
 import logging
 from Crypto.PublicKey import RSA
 from session import *
-from common.utils import *
 import consts
 import traceback
+import sys
+sys.path.append('../common')
+from utils import *
 
 log.init()
 logger = logging.getLogger("client")
 
 
 class Server:
-    def __init__(self, ip: str, port: str, handler: Callable[[Session, RSA, socket.socket], Any],
+    def __init__(self, ip: str, port: str, handler: Callable[[Session, RSA.RsaKey, socket.socket], Any],
                  logger: logging.Logger):
         self.ip = ip
         self.port = int(port)
