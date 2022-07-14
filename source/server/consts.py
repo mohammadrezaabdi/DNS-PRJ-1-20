@@ -4,8 +4,8 @@ packet_delimiter_str = '\0\0'
 packet_delimiter_byte = b'\0\0'
 
 # commands
-LOGIN = re.compile(r'^login')
-SIGNUP = re.compile(r'^signup')
+LOGIN = re.compile(r'^login\s+\d+\s+[\w\W]+')
+SIGNUP = re.compile(r'^signup\s+\d+\s+\w+\s+\w+\s+[\w\W]+')
 # messages
 login_success = "you've successfully logged in.\nuser id: {}\ngroup: {}\ncurrent path: {}"
 user_duplication_error = "user was duplicated."
