@@ -1,4 +1,5 @@
 import concurrent.futures
+import re
 from typing import Callable, Any
 import log
 import logging
@@ -47,15 +48,25 @@ def client_authentication(session: Session, server_key_pair: RsaKey, conn: socke
         share_pubkeys(session, server_key_pair, conn)
 
     # get client command packet (login or signup)
-    cmd = secure_receive(enc_key=server_key_pair, sign_key=session.client_pubkey, conn=conn)
+    packet = secure_receive(enc_key=server_key_pair, sign_key=session.client_pubkey, conn=conn)
+    cmd_args = packet.decode('ascii').split(consts.packet_delimiter_str)
+    cmd = ' '.join(cmd_args[:-1])
+    logger.info('received command: ' + cmd)
+    try:
+        if consts.LOGIN.match(cmd):
+            msg = login(session, cmd_args[1:-1])
+        elif consts.SIGNUP.match(cmd):
+            msg = signup(cmd_args[1:-1])
+        else:
+            raise Exception(consts.unknown_packet_err)
 
-    cmd_args = cmd.decode("ascii").split(consts.packet_delimiter_str)
-    if consts.LOGIN.match(cmd_args[0]):
-        login(session, cmd_args[1:], server_key_pair, conn)
-    elif consts.SIGNUP.match(cmd_args[0]):
-        signup(session, cmd_args[1:], server_key_pair, conn)
-    else:
-        raise Exception(consts.unknown_packet_err)
+        secure_reply(msg, conn, enc_key=session.client_pubkey, sign_key=server_key_pair,
+                     nonce=cmd_args[-1])
+
+    except Exception as e:
+        secure_reply(str(e).encode('ascii'), conn, enc_key=session.client_pubkey, sign_key=server_key_pair,
+                     nonce=cmd_args[-1])
+        raise e
 
 
 def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
@@ -69,10 +80,12 @@ def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
                         continue
 
                     # get command from client securely
-                    cmd = secure_receive(enc_key=session.session_key, sign_key=session.client_pubkey, conn=conn)
-                    cmd_args = cmd.decode("ascii").split(consts.packet_delimiter_str)
+                    packet = secure_receive(enc_key=session.session_key, sign_key=session.client_pubkey, conn=conn)
+                    cmd = ' '.join([p.decode('ascii') for p in packet.split(consts.packet_delimiter_byte)[:-1]])
+                    cmd_args = cmd.split(' ')
+                    logger.info('received command: ' + cmd)
                     # handle client commands
-                    if 'test' == cmd_args[0]:
+                    if re.compile(r'^test').match(cmd):
                         msg = 'tested'
                     # todo handle other commands
 
