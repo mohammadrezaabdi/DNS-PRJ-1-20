@@ -1,9 +1,8 @@
+from common.utils import *
 from socket import socket
 from Crypto.PublicKey import RSA
 import consts
-import sys
-sys.path.append('../common')
-from utils import *
+
 
 class Session:
     def __init__(self, uid=0):
@@ -29,8 +28,11 @@ def login(session: Session, cmd: str, conn: socket) -> str:
         [key share] Server -> Client: E(PU_c, msg || K_cs || N_c || E(PR_s, M))
     """
     # send & receive client hello & server hello packets
-    if not session.server_pubkey:
-        share_pubkeys(session, conn)
+    try:
+        if not session.server_pubkey:
+            share_pubkeys(session, conn)
+    except ValueError:
+        raise Exception(consts.end_connection)
 
     key_share = send_cmd_receive_message(session, cmd, conn)
     key_share_args = key_share.split(consts.packet_delimiter_byte)
@@ -53,8 +55,11 @@ def signup(session: Session, cmd: str, conn: socket) -> str:
         [server alive] Server -> Client: E(PU_c, msg || N_c || E(PR_s, M))
     """
     # send & receive client hello & server hello packets
-    if not session.server_pubkey:
-        share_pubkeys(session, conn)
+    try:
+        if not session.server_pubkey:
+            share_pubkeys(session, conn)
+    except ValueError:
+        raise Exception(consts.end_connection)
 
     server_alive = send_cmd_receive_message(session, cmd, conn)
     hello_server_args = server_alive.decode("ascii").split(consts.packet_delimiter_str)

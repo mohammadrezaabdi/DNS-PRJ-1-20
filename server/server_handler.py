@@ -5,18 +5,16 @@ import log
 import logging
 from Crypto.PublicKey import RSA
 from session import *
+from common.utils import *
 import consts
 import traceback
-import sys
-sys.path.append('../common')
-from utils import *
 
 log.init()
 logger = logging.getLogger("client")
 
 
 class Server:
-    def __init__(self, ip: str, port: str, handler: Callable[[Session, RSA.RsaKey, socket.socket], Any],
+    def __init__(self, ip: str, port: str, handler: Callable[[Session, RSA, socket.socket], Any],
                  logger: logging.Logger):
         self.ip = ip
         self.port = int(port)
@@ -44,8 +42,11 @@ class Server:
 
 def client_authentication(session: Session, server_key_pair: RsaKey, conn: socket):
     # get client public key
-    if not session.client_pubkey:
-        share_pubkeys(session, server_key_pair, conn)
+    try:
+        if not session.client_pubkey:
+            share_pubkeys(session, server_key_pair, conn)
+    except ValueError:
+        raise Exception(consts.end_connection)
 
     # get client command packet (login or signup)
     packet = secure_receive(enc_key=server_key_pair, sign_key=session.client_pubkey, conn=conn)
@@ -81,8 +82,8 @@ def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
 
                     # get command from client securely
                     packet = secure_receive(enc_key=session.session_key, sign_key=session.client_pubkey, conn=conn)
-                    cmd = ' '.join([p.decode('ascii') for p in packet.split(consts.packet_delimiter_byte)[:-1]])
-                    cmd_args = cmd.split(' ')
+                    cmd_args = packet.decode('ascii').split(consts.packet_delimiter_str)
+                    cmd = ' '.join(cmd_args[:-1])
                     logger.info('received command: ' + cmd)
                     # handle client commands
                     if re.compile(r'^test').match(cmd):

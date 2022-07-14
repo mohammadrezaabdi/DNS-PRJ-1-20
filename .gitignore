@@ -3,6 +3,9 @@
 
 source/server/*.db
 source/client/keys
+*.db
+keys
+datastore
 
 ### PyCharm ###
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio, WebStorm and Rider

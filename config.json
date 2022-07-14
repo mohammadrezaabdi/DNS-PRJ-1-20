@@ -5,6 +5,12 @@
     "BUFFER_SIZE": 4096
   },
   "filesystem": {
-    "root_path": "../files"
+    "root_path": "datastore/"
+  },
+  "keys": {
+    "DEFAULT_PATH": "keys/"
+  },
+  "aes": {
+    "M_LEN": 256
   }
 }

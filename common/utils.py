@@ -17,8 +17,8 @@ import secrets
 with open('config.json') as f:
     conf = json.load(f)
 
-BUFF_SIZE = 4096
-AES_M_LEN = 256
+BUFF_SIZE = conf['server']['BUFFER_SIZE']
+AES_M_LEN = conf['aes']['M_LEN']
 
 
 def recvall(sock):
