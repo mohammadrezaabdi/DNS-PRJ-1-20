@@ -7,7 +7,7 @@ from time import gmtime, strftime
 
 from session import Session
 
-with open('config.json') as f:
+with open('../config.json') as f:
     conf = json.load(f)
 
 SERVER = DefaultMunch.fromDict(conf['server'])

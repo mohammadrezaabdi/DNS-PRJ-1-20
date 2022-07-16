@@ -14,7 +14,7 @@ import pyaes
 from typing import Optional
 import secrets
 
-with open('config.json') as f:
+with open("../config.json") as f:
     conf = json.load(f)
 
 BUFF_SIZE = conf['server']['BUFFER_SIZE']

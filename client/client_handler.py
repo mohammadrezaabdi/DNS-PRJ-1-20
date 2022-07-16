@@ -35,9 +35,22 @@ def handle_client_cli(session: Session, conn: socket):
                     raise Exception(consts.unknown_command_err)
                 continue
 
+            cmd = ' '.join(cmd.split())
             # just for testing
             if re.compile('test').match(cmd):
                 print(test_aes(session, cmd, conn))
+            
+            elif re.compile('^mkdir ').match(cmd):
+                print(mkdir_cmd(session, cmd, conn))
+            
+            elif re.compile('^ls').match(cmd):
+                print(ls_cmd(session, cmd, conn))
+            
+            elif re.compile('^cd ').match(cmd):
+                print(cd_cmd(session, cmd, conn))
+            
+            elif re.compile('^rm ').match(cmd):
+                print(rm_cmd(session, cmd, conn))
             # todo other commands
 
         except EOFError:

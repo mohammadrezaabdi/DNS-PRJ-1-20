@@ -1,7 +1,9 @@
-from common.utils import *
 from socket import socket
 from Crypto.PublicKey import RSA
 import consts
+import sys
+sys.path.append('../common')
+from utils import *
 
 
 class Session:
@@ -14,6 +16,26 @@ class Session:
 
 
 def test_aes(session: Session, cmd: str, conn: socket) -> str:
+    response = send_cmd_receive_message(session, cmd, conn)
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('ascii')
+    return msg
+
+def mkdir_cmd(session: Session, cmd: str, conn: socket) -> str:
+    response = send_cmd_receive_message(session, cmd, conn)
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('ascii')
+    return msg
+
+def cd_cmd(session: Session, cmd: str, conn: socket) -> str:
+    response = send_cmd_receive_message(session, cmd, conn)
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('ascii')
+    return msg
+
+def rm_cmd(session: Session, cmd: str, conn: socket) -> str:
+    response = send_cmd_receive_message(session, cmd, conn)
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('ascii')
+    return msg
+
+def ls_cmd(session: Session, cmd: str, conn: socket) -> str:
     response = send_cmd_receive_message(session, cmd, conn)
     msg = response.split(consts.packet_delimiter_byte)[0].decode('ascii')
     return msg

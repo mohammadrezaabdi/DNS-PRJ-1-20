@@ -17,26 +17,32 @@ class Access(enum.Enum):
     read = 'r'
     read_write = 'rw'
 
+class Type(enum.Enum):
+    file = 'file'
+    directory = 'dir'
 
-class File(Base):
-    __tablename__ = "files"
+
+class Entity(Base):
+    __tablename__ = "entities"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=False, index=True)
     path = Column(String, unique=False, index=True)
     hash = Column(BINARY)
+    entity_type = Column(Enum(Type))
     owner_key = Column(BINARY)
     owner_id = Column(Integer, ForeignKey("users.id"))
-
+    
     owner = relationship("User", foreign_keys=[owner_id])
+    
 
+class ACL(Base):
+    __tablename__ = "access_list"
 
-class FACL(Base):
-    __tablename__ = "file_access_list"
-
-    file_id = Column(Integer, ForeignKey("files.id"), primary_key=True, nullable=False, index=True)
+    entity_id = Column(Integer, ForeignKey("entities.id"), primary_key=True, nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True, nullable=False, index=True)
     access = Column(Enum(Access))
+    share_key = Column(BINARY)
 
-    file = relationship("File", foreign_keys=[file_id])
+    entity = relationship("Entity", foreign_keys=[entity_id])
     users = relationship("User", foreign_keys=[user_id])

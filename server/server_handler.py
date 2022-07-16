@@ -5,16 +5,19 @@ import log
 import logging
 from Crypto.PublicKey import RSA
 from session import *
-from common.utils import *
+from filesys_cmds import *
 import consts
 import traceback
+import sys
+sys.path.append('../common')
+from utils import *
 
 log.init()
 logger = logging.getLogger("client")
 
 
 class Server:
-    def __init__(self, ip: str, port: str, handler: Callable[[Session, RSA, socket.socket], Any],
+    def __init__(self, ip: str, port: str, handler: Callable[[Session, RSA.RsaKey, socket.socket], Any],
                  logger: logging.Logger):
         self.ip = ip
         self.port = int(port)
@@ -69,7 +72,7 @@ def client_authentication(session: Session, server_key_pair: RsaKey, conn: socke
                      nonce=cmd_args[-1])
         raise e
 
-
+    
 def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
     logger.debug("handling new client")
     with conn:
@@ -85,10 +88,22 @@ def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
                     cmd_args = packet.decode('ascii').split(consts.packet_delimiter_str)
                     cmd = ' '.join(cmd_args[:-1])
                     logger.info('received command: ' + cmd)
+                    logger.info(cmd_args)
                     # handle client commands
                     if re.compile(r'^test').match(cmd):
                         msg = 'tested'
-                    # todo handle other commands
+                    
+                    elif re.compile(r'^mkdir ').match(cmd):
+                        msg= mkdir_handler(cmd_args[1:-1] , session)
+                    
+                    elif re.compile(r'^ls').match(cmd):
+                        msg= ls_handler(cmd_args[1:-1] , session)
+                    
+                    elif re.compile(r'^cd ').match(cmd):
+                        msg= cd_handler(cmd_args[1:-1] , session)
+                    
+                    elif re.compile(r'^rm ').match(cmd):
+                        msg= rm_handler(cmd_args[1:-1] , session)
 
                     # send message to client
                     secure_reply(msg.encode('ascii'), conn, enc_key=session.session_key, sign_key=server_key_pair,
