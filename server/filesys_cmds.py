@@ -181,20 +181,24 @@ def ls_handler(args: list[str], session: Session) -> str:
 
 def touch_handler(args: list[str], session: Session) -> str:
     global fs
-    path = args[0] if args[0] else '/'
+    db = next(get_db())
+    path = args[0] if args[0] else session.current_path
     file_name = base64.b64decode(args[1])
     file_key = base64.b64decode(args[2])
-    file_path = ROOT_PATH + args[1]
+    filesys_path = ROOT_PATH + args[1]
 
-    # todo check file and path exists before
     # todo create path if necessary
 
+    # check if user created the same file with same path before
+    if db.query(Entity).filter(
+            Entity.path == path and Entity.name == args[1] and Entity.owner.id == session.user.id).first():
+        return "File Exists"
+
     # create file
-    fs.touch(file_path)
+    fs.touch(filesys_path)
 
     # save file to database
-    db = next(get_db())
-    db_entity = Entity(name=args[1], path=path, hash=sha256sum(file_path),
+    db_entity = Entity(name=args[1], path=path, hash=sha256sum(filesys_path),
                        entity_type=Type.file, owner_key=file_key, owner_id=session.user.id)
     db.add(db_entity)
     db.commit()
@@ -206,7 +210,7 @@ def touch_handler(args: list[str], session: Session) -> str:
     db.commit()
     db.refresh(db_acl)
 
-    return 'file created successfully'
+    return "file created successfully"
 
 
 def vim_handler(args: list[str], session: Session) -> str:

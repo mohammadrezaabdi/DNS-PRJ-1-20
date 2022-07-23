@@ -1,5 +1,5 @@
+import binascii
 import hashlib
-
 from Crypto.Random import get_random_bytes
 from Crypto.PublicKey.RSA import RsaKey
 from Crypto.Signature.pkcs1_15 import PKCS115_SigScheme
@@ -157,7 +157,11 @@ def encrypt_fernet(arg: str, key: bytes) -> bytes:
     return Fernet(key).encrypt(arg.encode('utf-8'))
 
 
-def sha256sum(file_path) -> bytes:
+def sha256hash(message: bytes) -> bytes:
+    return binascii.hexlify(hashlib.sha256(message).digest())
+
+
+def sha256sum(file_path: str) -> bytes:
     h = hashlib.sha256()
 
     with open(file_path, 'rb') as file:
