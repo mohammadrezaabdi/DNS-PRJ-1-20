@@ -36,7 +36,7 @@ def handle_client_cli(session: Session, conn: socket):
                 continue
 
             cmd = ' '.join(cmd.split())
-            # just for testing
+            # todo check regex
             if re.compile('test').match(cmd):
                 print(test_aes(session, cmd, conn))
             
@@ -51,6 +51,12 @@ def handle_client_cli(session: Session, conn: socket):
             
             elif re.compile('^rm ').match(cmd):
                 print(rm_cmd(session, cmd, conn))
+
+            elif re.compile('^touch ').match(cmd):
+                print(touch_cmd(session, cmd, conn))
+
+            elif re.compile('^vim ').match(cmd):
+                print(vim_cmd(session, cmd, conn))
             # todo other commands
 
         except EOFError:

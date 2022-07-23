@@ -4,8 +4,8 @@ import os
 import pbkdf2
 from Crypto.PublicKey import RSA
 import sys
-sys.path.append('../common')
-from utils import *
+from common.utils import *
+
 
 class Session:
     def __init__(self):
@@ -20,7 +20,7 @@ users: dict[int, Session] = {}
 
 def login(session: Session, args: list[str]) -> bytes:
     # check if user exists
-    user = get_user(args[0])
+    user = get_user(int(args[0]))
     if not user:
         raise Exception(consts.user_not_found)
     # check user password
@@ -32,15 +32,15 @@ def login(session: Session, args: list[str]) -> bytes:
     session.session_key = pbkdf2.PBKDF2(passphrase=user.password, salt=os.urandom(16)).read(32)
     # todo set group and default path
     msg = consts.login_success.format(user.id, "work", session.current_path)
-    msg = msg.encode('ascii') + consts.packet_delimiter_byte + session.session_key
+    msg = msg.encode('utf-8') + consts.packet_delimiter_byte + session.session_key
     return msg
 
 
 def signup(args: list[str]) -> bytes:
     # create user
-    create_user(uid=args[0], firstname=args[1], lastname=args[2], password=args[3])
+    create_user(uid=int(args[0]), firstname=args[1], lastname=args[2], password=args[3])
     # send success message
-    return consts.signup_success_msg.encode('ascii')
+    return consts.signup_success_msg.encode('utf-8')
 
 
 def share_pubkeys(session: Session, server_key_pair: RsaKey, conn: socket):

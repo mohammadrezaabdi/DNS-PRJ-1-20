@@ -7,8 +7,8 @@ from model import User
 
 def create_user(uid: int, firstname: str, lastname: str, password: str):
     db = next(get_db())
-    hashed_password = hashlib.sha256(password.encode('ascii')).digest()
-    hashed_password = binascii.hexlify(hashed_password).decode('ascii')
+    hashed_password = hashlib.sha256(password.encode('utf-8')).digest()
+    hashed_password = binascii.hexlify(hashed_password).decode('utf-8')
     if db.query(User).filter(User.id == uid).first():
         raise Exception(consts.user_duplication_error)
     db_user = User(id=uid, firstname=firstname, lastname=lastname, password=hashed_password)
@@ -24,7 +24,7 @@ def get_user(uid: int) -> User:
 
 
 def authenticate(user: User, password: str):
-    hashed_password = hashlib.sha256(password.encode('ascii')).digest()
-    hashed_password = binascii.hexlify(hashed_password).decode('ascii')
+    hashed_password = hashlib.sha256(password.encode('utf-8')).digest()
+    hashed_password = binascii.hexlify(hashed_password).decode('utf-8')
     if hashed_password != user.password:
         raise Exception(consts.incorrect_password)

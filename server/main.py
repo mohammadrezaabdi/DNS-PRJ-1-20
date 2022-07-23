@@ -9,7 +9,7 @@ import model
 log.init()
 logger = logging.getLogger("server")
 
-with open('../config.json') as f:
+with open('config.json') as f:
     conf = json.load(f)
 
 SERVER = DefaultMunch.fromDict(conf['server'])

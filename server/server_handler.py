@@ -9,8 +9,8 @@ from filesys_cmds import *
 import consts
 import traceback
 import sys
-sys.path.append('../common')
-from utils import *
+
+from common.utils import *
 
 log.init()
 logger = logging.getLogger("client")
@@ -53,7 +53,7 @@ def client_authentication(session: Session, server_key_pair: RsaKey, conn: socke
 
     # get client command packet (login or signup)
     packet = secure_receive(enc_key=server_key_pair, sign_key=session.client_pubkey, conn=conn)
-    cmd_args = packet.decode('ascii').split(consts.packet_delimiter_str)
+    cmd_args = packet.decode('utf-8').split(consts.packet_delimiter_str)
     cmd = ' '.join(cmd_args[:-1])
     logger.info('received command: ' + cmd)
     try:
@@ -68,11 +68,11 @@ def client_authentication(session: Session, server_key_pair: RsaKey, conn: socke
                      nonce=cmd_args[-1])
 
     except Exception as e:
-        secure_reply(str(e).encode('ascii'), conn, enc_key=session.client_pubkey, sign_key=server_key_pair,
+        secure_reply(str(e).encode('utf-8'), conn, enc_key=session.client_pubkey, sign_key=server_key_pair,
                      nonce=cmd_args[-1])
         raise e
 
-    
+
 def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
     logger.debug("handling new client")
     with conn:
@@ -85,28 +85,36 @@ def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
 
                     # get command from client securely
                     packet = secure_receive(enc_key=session.session_key, sign_key=session.client_pubkey, conn=conn)
-                    cmd_args = packet.decode('ascii').split(consts.packet_delimiter_str)
+                    cmd_args = packet.decode('utf-8').split(consts.packet_delimiter_str)
                     cmd = ' '.join(cmd_args[:-1])
                     logger.info('received command: ' + cmd)
                     logger.info(cmd_args)
+
                     # handle client commands
+                    # todo check REGEX
                     if re.compile(r'^test').match(cmd):
                         msg = 'tested'
-                    
+
                     elif re.compile(r'^mkdir ').match(cmd):
-                        msg= mkdir_handler(cmd_args[1:-1] , session)
-                    
+                        msg = mkdir_handler(cmd_args[1:-1], session)
+
                     elif re.compile(r'^ls').match(cmd):
-                        msg= ls_handler(cmd_args[1:-1] , session)
-                    
+                        msg = ls_handler(cmd_args[1:-1], session)
+
                     elif re.compile(r'^cd ').match(cmd):
-                        msg= cd_handler(cmd_args[1:-1] , session)
-                    
+                        msg = cd_handler(cmd_args[1:-1], session)
+
                     elif re.compile(r'^rm ').match(cmd):
-                        msg= rm_handler(cmd_args[1:-1] , session)
+                        msg = rm_handler(cmd_args[1:-1], session)
+
+                    elif re.compile(r'^touch ').match(cmd):
+                        msg = touch_handler(cmd_args[1:-1], session)
+
+                    elif re.compile(r'^vim ').match(cmd):
+                        msg = vim_handler(cmd_args[1:-1], session)
 
                     # send message to client
-                    secure_reply(msg.encode('ascii'), conn, enc_key=session.session_key, sign_key=server_key_pair,
+                    secure_reply(msg.encode('utf-8'), conn, enc_key=session.session_key, sign_key=server_key_pair,
                                  nonce=cmd_args[-1])
 
                 except Exception as e:

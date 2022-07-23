@@ -1,8 +1,11 @@
+import hashlib
+
 from Crypto.Random import get_random_bytes
 from Crypto.PublicKey.RSA import RsaKey
 from Crypto.Signature.pkcs1_15 import PKCS115_SigScheme
 from Crypto.Cipher import PKCS1_v1_5
 from Crypto.Hash import SHA256
+from cryptography.fernet import Fernet
 import json
 from random import randrange
 import sys
@@ -14,7 +17,7 @@ import pyaes
 from typing import Optional
 import secrets
 
-with open("../config.json") as f:
+with open("config.json") as f:
     conf = json.load(f)
 
 BUFF_SIZE = conf['server']['BUFFER_SIZE']
@@ -59,14 +62,14 @@ def check_signature(packet: bytes, sign_key: RsaKey):
 def add_nonce(packet: bytes) -> tuple[bytes, str]:
     # add nonce to the packet (Availability)
     nonce = randrange(sys.maxsize)
-    packet += consts.packet_delimiter_byte + str(nonce).encode('ascii')
+    packet += consts.packet_delimiter_byte + str(nonce).encode('utf-8')
     return packet, str(nonce)
 
 
 def check_nonce(packet: bytes, nonce: str):
     # the last bytes of packet should be nonce
     packet_nonce = packet.split(consts.packet_delimiter_byte)[-1]
-    if packet_nonce.decode('ascii') != nonce:
+    if packet_nonce.decode('utf-8') != nonce:
         raise Exception(consts.nonce_not_match_error)
 
 
@@ -91,14 +94,14 @@ def decrypt_rsa(packet: bytes, dec_key: RsaKey):
     return decrypted_packet
 
 
-def encrypt_ase(packet: bytes, enc_key: bytes):
+def encrypt_aes(packet: bytes, enc_key: bytes):
     iv = secrets.randbits(AES_M_LEN)
     aes = pyaes.AESModeOfOperationCTR(enc_key, pyaes.Counter(iv))
     encrypted_packet = aes.encrypt(packet) + consts.packet_delimiter_byte + int_to_bytes(iv)
     return encrypted_packet
 
 
-def decrypt_ase(packet: bytes, enc_key: bytes):
+def decrypt_aes(packet: bytes, enc_key: bytes):
     packets = packet.split(consts.packet_delimiter_byte)
     iv = int_from_bytes(packets[1])
     aes = pyaes.AESModeOfOperationCTR(enc_key, pyaes.Counter(iv))
@@ -113,7 +116,7 @@ def secure_send(packet: bytes, conn: socket.socket, enc_key: Union[RsaKey, bytes
     if type(enc_key) == RsaKey:
         encrypted_packet = encrypt_rsa(packet, enc_key)
     else:
-        encrypted_packet = encrypt_ase(packet, enc_key)
+        encrypted_packet = encrypt_aes(packet, enc_key)
     # send encrypted packet
     conn.sendall(encrypted_packet)
 
@@ -122,7 +125,7 @@ def secure_reply(msg: bytes, conn: socket.socket, enc_key: Union[RsaKey, bytes],
                  nonce: str = ''):
     # add client nonce
     if nonce:
-        msg += consts.packet_delimiter_byte + nonce.encode("ascii")
+        msg += consts.packet_delimiter_byte + nonce.encode('utf-8')
     secure_send(msg, conn, enc_key=enc_key, signature_key=sign_key)
 
 
@@ -135,7 +138,7 @@ def secure_receive(conn: socket.socket, enc_key: Union[RsaKey, bytes], sign_key:
     if type(enc_key) == RsaKey:
         packet = decrypt_rsa(encrypted_packet, enc_key)
     else:
-        packet = decrypt_ase(encrypted_packet, enc_key)
+        packet = decrypt_aes(encrypted_packet, enc_key)
     # check signature
     if sign_key is not None:
         check_signature(packet, sign_key)
@@ -148,3 +151,21 @@ def secure_receive(conn: socket.socket, enc_key: Union[RsaKey, bytes], sign_key:
         check_nonce(packet_without_signature, nonce)
     # eliminate signature from packet
     return consts.packet_delimiter_byte.join(packet.split(consts.packet_delimiter_byte)[:-1])
+
+
+def encrypt_fernet(arg: str, key: bytes) -> bytes:
+    return Fernet(key).encrypt(arg.encode('utf-8'))
+
+
+def sha256sum(file_path) -> bytes:
+    h = hashlib.sha256()
+
+    with open(file_path, 'rb') as file:
+        while True:
+            # Reading is buffered, so we can read smaller chunks.
+            chunk = file.read(h.block_size)
+            if not chunk:
+                break
+            h.update(chunk)
+
+    return h.digest()

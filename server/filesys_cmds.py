@@ -1,8 +1,22 @@
+import base64
+import json
 from operator import and_, or_
+
+from munch import DefaultMunch
+
+from common.utils import sha256sum
 from database import get_db
 from model import Entity, Type, ACL, Access
 from session import Session
 from sqlalchemy import or_, and_
+import fsspec
+
+with open('config.json') as f:
+    conf = json.load(f)
+
+FILE_SYSTEM = DefaultMunch.fromDict(conf['filesystem'])
+ROOT_PATH = FILE_SYSTEM.ROOT_PATH
+fs = fsspec.filesystem('file')
 
 
 def mkdir_handler(args: list[str], session: Session) -> str:
@@ -20,8 +34,8 @@ def mkdir_handler(args: list[str], session: Session) -> str:
         return "Incorrect path: '/'"
     print(parents)
     for i in range(2, len(parents)):
-        print(mkdir('/'+'/'.join(parents[1:i]), session=session))
-    return mkdir('/'+'/'.join(parents[1:]), session=session)
+        print(mkdir('/' + '/'.join(parents[1:i]), session=session))
+    return mkdir('/' + '/'.join(parents[1:]), session=session)
 
 
 def mkdir(path: str, session: Session) -> str:
@@ -78,7 +92,7 @@ def rm_handler(args: list[str], session: Session) -> str:
     print(path)
     result = db.query(ACL).join(Entity).filter(
         or_((and_(Entity.name == name, Entity.path == path)), (
-            (and_(Entity.path.like(path+"/"+name), Entity.path != path)))
+            (and_(Entity.path.like(path + "/" + name), Entity.path != path)))
             ),
         # Entity.entity_type == type_,
         ACL.user_id == session.user.id,
@@ -99,7 +113,7 @@ def cd_handler(args: list[str], session: Session) -> str:
     path = get_absolute_path(args[0], session)
     if check_path_for_user(path, session):
         session.current_path = path
-        return(f"current path: {path}")
+        return (f"current path: {path}")
     return "Directory does NOT exist. cd failed."
 
 
@@ -121,12 +135,12 @@ def get_absolute_path(path: str, session: Session):
             print(path)
             continue
         else:
-            path += "/"+temp
+            path += "/" + temp
     path = "/" if path == "" else path
     i = 0
-    while i < len(path)-1:
-        if path[i] == "/" and path[i+1] == "/":
-            path = path[:i]+path[i+1:]
+    while i < len(path) - 1:
+        if path[i] == "/" and path[i + 1] == "/":
+            path = path[:i] + path[i + 1:]
             i -= 1
         i += 1
     return path
@@ -135,9 +149,9 @@ def get_absolute_path(path: str, session: Session):
 def check_path_for_user(path, session: Session):
     db = next(get_db())
     if db.query(Entity, ACL).filter(
-        Entity.path == path,
-        ACL.user_id == session.user.id,
-        ACL.entity_id == Entity.id
+            Entity.path == path,
+            ACL.user_id == session.user.id,
+            ACL.entity_id == Entity.id
     ).first():
         return True
     return False
@@ -159,7 +173,42 @@ def ls_handler(args: list[str], session: Session) -> str:
     ent_list = ""
     for r in result:
         if r[0].entity_type == Type.directory:
-            ent_list += r[0].name+"[d] "
+            ent_list += r[0].name + "[d] "
         elif r[0].entity_type == Type.file:
-            ent_list += r[0].name+"[f] "
+            ent_list += r[0].name + "[f] "
     return ent_list
+
+
+def touch_handler(args: list[str], session: Session) -> str:
+    global fs
+    path = args[0] if args[0] else '/'
+    file_name = base64.b64decode(args[1])
+    file_key = base64.b64decode(args[2])
+    file_path = ROOT_PATH + args[1]
+
+    # todo check file and path exists before
+    # todo create path if necessary
+
+    # create file
+    fs.touch(file_path)
+
+    # save file to database
+    db = next(get_db())
+    db_entity = Entity(name=args[1], path=path, hash=sha256sum(file_path),
+                       entity_type=Type.file, owner_key=file_key, owner_id=session.user.id)
+    db.add(db_entity)
+    db.commit()
+    db.refresh(db_entity)
+
+    db_acl = ACL(entity_id=db_entity.id, user_id=session.user.id,
+                 access=Access.read_write, share_key=file_key)
+    db.add(db_acl)
+    db.commit()
+    db.refresh(db_acl)
+
+    return 'file created successfully'
+
+
+def vim_handler(args: list[str], session: Session) -> str:
+    # todo check hash
+    pass

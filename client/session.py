@@ -1,9 +1,9 @@
+import base64
 from socket import socket
 from Crypto.PublicKey import RSA
 import consts
 import sys
-sys.path.append('../common')
-from utils import *
+from common.utils import *
 
 
 class Session:
@@ -17,27 +17,58 @@ class Session:
 
 def test_aes(session: Session, cmd: str, conn: socket) -> str:
     response = send_cmd_receive_message(session, cmd, conn)
-    msg = response.split(consts.packet_delimiter_byte)[0].decode('ascii')
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
+
 
 def mkdir_cmd(session: Session, cmd: str, conn: socket) -> str:
     response = send_cmd_receive_message(session, cmd, conn)
-    msg = response.split(consts.packet_delimiter_byte)[0].decode('ascii')
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
+
 
 def cd_cmd(session: Session, cmd: str, conn: socket) -> str:
     response = send_cmd_receive_message(session, cmd, conn)
-    msg = response.split(consts.packet_delimiter_byte)[0].decode('ascii')
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
+
 
 def rm_cmd(session: Session, cmd: str, conn: socket) -> str:
     response = send_cmd_receive_message(session, cmd, conn)
-    msg = response.split(consts.packet_delimiter_byte)[0].decode('ascii')
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
+
 
 def ls_cmd(session: Session, cmd: str, conn: socket) -> str:
     response = send_cmd_receive_message(session, cmd, conn)
-    msg = response.split(consts.packet_delimiter_byte)[0].decode('ascii')
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
+    return msg
+
+
+def touch_cmd(session: Session, cmd: str, conn: socket) -> str:
+    # extract file path and file name
+    cmd_args = cmd.split(' ')
+    path_args = cmd_args[1].split('/')
+    file_name = path_args[-1]
+    file_path = '/'.join(path_args[:-1])
+    # generate encrypt file key
+    file_key = Fernet.generate_key()
+    # encrypt file key
+    encrypted_key = encrypt_rsa(file_key, session.user_key_pair.publickey())
+    # encrypt file name
+    encrypted_file_name = encrypt_fernet(file_name, file_key)
+    # create final packet
+    encrypted_key_str = str(base64.b64encode(encrypted_key), 'utf-8')
+    encrypted_file_name_str = str(base64.b64encode(encrypted_file_name), 'utf-8')
+    final_cmd = ' '.join([cmd_args[0], file_path, encrypted_file_name_str, encrypted_key_str])
+    response = send_cmd_receive_message(session, final_cmd, conn)
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
+    return msg
+
+
+def vim_cmd(session: Session, cmd: str, conn: socket) -> str:
+    response = send_cmd_receive_message(session, cmd, conn)
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
 
 
@@ -58,7 +89,7 @@ def login(session: Session, cmd: str, conn: socket) -> str:
 
     key_share = send_cmd_receive_message(session, cmd, conn)
     key_share_args = key_share.split(consts.packet_delimiter_byte)
-    msg = key_share_args[0].decode('ascii')
+    msg = key_share_args[0].decode('utf-8')
 
     # set session key
     if consts.login_success.match(msg):
@@ -84,7 +115,7 @@ def signup(session: Session, cmd: str, conn: socket) -> str:
         raise Exception(consts.end_connection)
 
     server_alive = send_cmd_receive_message(session, cmd, conn)
-    hello_server_args = server_alive.decode("ascii").split(consts.packet_delimiter_str)
+    hello_server_args = server_alive.decode('utf-8').split(consts.packet_delimiter_str)
 
     # return server message
     return hello_server_args[0]
@@ -93,7 +124,7 @@ def signup(session: Session, cmd: str, conn: socket) -> str:
 def secure_send_cmd_with_nonce(session: Session, cmd: str, conn: socket, enc_key: Union[bytes, RsaKey],
                                sign_key: RsaKey):
     # insert delimiter im command args
-    packet = consts.packet_delimiter_str.join(cmd.split(' ')).encode('ascii')
+    packet = consts.packet_delimiter_str.join(cmd.split(' ')).encode('utf-8')
     # add nonce to the packet (Server Availability)
     packet, session.nonce = add_nonce(packet)
     # send encrypted packet to client (Confidentiality, Signature)
