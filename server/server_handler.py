@@ -60,7 +60,7 @@ def client_authentication(session: Session, server_key_pair: RsaKey, conn: socke
         if consts.LOGIN.match(cmd):
             msg = login(session, cmd_args[1:-1])
         elif consts.SIGNUP.match(cmd):
-            msg = signup(cmd_args[1:-1])
+            msg = signup(cmd_args[1:-1], session)
         else:
             raise Exception(consts.unknown_packet_err)
 

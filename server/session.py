@@ -9,10 +9,10 @@ from common.utils import *
 
 class Session:
     def __init__(self):
-        self.user = None
-        self.session_key = None
-        self.client_pubkey = None
-        self.current_path = "/"
+        self.user: User = None
+        self.session_key: bytes = None
+        self.client_pubkey: RsaKey = None
+        self.current_path: str = "/"
 
 
 users: dict[int, Session] = {}
@@ -36,9 +36,10 @@ def login(session: Session, args: list[str]) -> bytes:
     return msg
 
 
-def signup(args: list[str]) -> bytes:
+def signup(args: list[str], session: Session) -> bytes:
     # create user
-    create_user(uid=int(args[0]), firstname=args[1], lastname=args[2], password=args[3])
+    create_user(uid=int(args[0]), firstname=args[1], lastname=args[2], password=args[3],
+                pub_key=session.client_pubkey.exportKey())
     # send success message
     return consts.signup_success_msg.encode('utf-8')
 

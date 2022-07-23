@@ -211,4 +211,6 @@ def touch_handler(args: list[str], session: Session) -> str:
 
 def vim_handler(args: list[str], session: Session) -> str:
     # todo check hash
+    # todo check file not exists
+    # todo check user have access
     pass

@@ -8,11 +8,11 @@ from common.utils import *
 
 class Session:
     def __init__(self, uid=0):
-        self.uid = uid
-        self.session_key = None
-        self.user_key_pair = None
-        self.nonce = ''
-        self.server_pubkey = None
+        self.uid: int = uid
+        self.session_key: bytes = None
+        self.user_key_pair: RsaKey = None
+        self.nonce: str = ''
+        self.server_pubkey: RsaKey = None
 
 
 def test_aes(session: Session, cmd: str, conn: socket) -> str:

@@ -11,11 +11,13 @@ class User(Base):
     firstname = Column(String, unique=False, index=True)
     lastname = Column(String, unique=False, index=True)
     password = Column(String)
+    pub_key = Column(BINARY)
 
 
 class Access(enum.Enum):
     read = 'r'
     read_write = 'rw'
+
 
 class Type(enum.Enum):
     file = 'file'
@@ -32,9 +34,9 @@ class Entity(Base):
     entity_type = Column(Enum(Type))
     owner_key = Column(BINARY)
     owner_id = Column(Integer, ForeignKey("users.id"))
-    
+
     owner = relationship("User", foreign_keys=[owner_id])
-    
+
 
 class ACL(Base):
     __tablename__ = "access_list"
