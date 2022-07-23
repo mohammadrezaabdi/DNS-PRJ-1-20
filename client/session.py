@@ -52,15 +52,14 @@ def ls_cmd(session: Session, cmd: str, conn: socket) -> str:
 def touch_cmd(session: Session, cmd: str, conn: socket) -> str:
     # extract file path and file name
     cmd_args = cmd.split(' ')
-    file_path, hashed_file_name = get_hashed_file_name_and_path(session, cmd_args[1])
+    file_path, file_name = get_file_name_and_path(session, cmd_args[1])
     # generate encrypt file key
     file_key = Fernet.generate_key()
     # encrypt file key
     encrypted_key = encrypt_rsa(file_key, session.user_key_pair.publickey())
     # create final packet
     encrypted_key_str = str(base64.b64encode(encrypted_key), 'utf-8')
-    hashed_file_name_str = str(base64.b64encode(hashed_file_name), 'utf-8')
-    final_cmd = ' '.join([cmd_args[0], file_path, hashed_file_name_str, encrypted_key_str])
+    final_cmd = ' '.join([cmd_args[0], file_path, file_name, encrypted_key_str])
     response = send_cmd_receive_message(session, final_cmd, conn)
     msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
@@ -152,10 +151,8 @@ def share_pubkeys(session: Session, conn: socket):
     session.server_pubkey = RSA.importKey(server_pubkey)
 
 
-def get_hashed_file_name_and_path(session: Session, filepath: str) -> Tuple[str, bytes]:
+def get_file_name_and_path(session: Session, filepath: str) -> Tuple[str, str]:
     path_args = filepath.split('/')
     file_name = path_args[-1]
     file_path = '/'.join(path_args[:-1]) if path_args[:-1] else session.current_path
-    # hash file name : H(PATH + NAME + USER ID)
-    hashed_file_name = sha256hash((file_path + file_name + str(session.uid)).encode('utf-8'))
-    return file_path, hashed_file_name
+    return file_path, file_name

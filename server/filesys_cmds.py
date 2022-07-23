@@ -4,7 +4,7 @@ from operator import and_, or_
 
 from munch import DefaultMunch
 
-from common.utils import sha256sum
+from common.utils import sha256sum, sha256hash
 from database import get_db
 from model import Entity, Type, ACL, Access
 from session import Session
@@ -183,22 +183,22 @@ def touch_handler(args: list[str], session: Session) -> str:
     global fs
     db = next(get_db())
     path = args[0] if args[0] else session.current_path
-    file_name = base64.b64decode(args[1])
+    file_name = args[1]
     file_key = base64.b64decode(args[2])
-    filesys_path = ROOT_PATH + args[1]
 
     # todo create path if necessary
 
     # check if user created the same file with same path before
     if db.query(Entity).filter(
-            Entity.path == path and Entity.name == args[1] and Entity.owner.id == session.user.id).first():
+            Entity.path == path and Entity.name == file_name and Entity.owner.id == session.user.id).first():
         return "File Exists"
 
     # create file
+    filesys_path = ROOT_PATH + get_filesys_path(path, file_name, session.user.id)
     fs.touch(filesys_path)
 
     # save file to database
-    db_entity = Entity(name=args[1], path=path, hash=sha256sum(filesys_path),
+    db_entity = Entity(name=file_name, path=path, hash=sha256sum(filesys_path),
                        entity_type=Type.file, owner_key=file_key, owner_id=session.user.id)
     db.add(db_entity)
     db.commit()
@@ -218,3 +218,7 @@ def vim_handler(args: list[str], session: Session) -> str:
     # todo check file not exists
     # todo check user have access
     pass
+
+
+def get_filesys_path(path: str, file_name: str, owner_id: int) -> str:
+    return sha256hash((path + file_name + str(owner_id)).encode('utf-8')).decode('utf-8')
