@@ -16,9 +16,11 @@ class Access(str, enum.Enum):
     read = 'r'
     read_write = 'rw'
 
+
 class Type(str, enum.Enum):
     file = 'file'
     directory = 'dir'
+
 
 class Entity(BaseModel):
     id: int

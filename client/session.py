@@ -1,11 +1,16 @@
 import base64
-from socket import socket
+import shutil
+from subprocess import Popen
 from typing import Tuple
 
+import fsspec
 from Crypto.PublicKey import RSA
+
 import consts
-import sys
+from common.consts import *
 from common.utils import *
+
+fs = fsspec.filesystem('file')
 
 
 class Session:
@@ -65,8 +70,56 @@ def touch_cmd(session: Session, cmd: str, conn: socket) -> str:
     return msg
 
 
-def vim_cmd(session: Session, cmd: str, conn: socket) -> str:
-    response = send_cmd_receive_message(session, cmd, conn)
+def vim_cmd(session: Session, cmd: str, conn: socket.socket) -> str:
+    # extract file path and file name
+    cmd_args = cmd.split(' ')
+    file_path, file_name = get_file_name_and_path(session, cmd_args[1])
+    final_cmd = ' '.join([cmd_args[0], file_path, file_name])
+    secure_send_cmd_with_nonce(session, final_cmd, conn, session.session_key, session.user_key_pair)
+    # get file key and access
+    packet = secure_receive(conn, enc_key=session.session_key, signature_key=session.server_pubkey)
+    packet_args = packet.split(consts.packet_delimiter_byte)
+    msg = packet_args[0].decode('utf-8')
+    if msg in [file_not_exists, file_corrupted_err]:
+        return msg
+    access = msg
+    file_key = decrypt_rsa(packet_args[1], session.user_key_pair)
+    file_hash = packet_args[2]
+
+    # receive file
+    receive_file(file_name, conn)
+
+    # check hash
+    if file_hash != sha256sum(file_name):
+        secure_send(consts.file_received_corrupted_err.encode('utf-8'), conn, enc_key=session.session_key,
+                    signature_key=session.user_key_pair)
+        return packet.split(consts.packet_delimiter_byte)[0].decode('utf-8')
+
+    secure_send(consts.file_received_success.encode('utf-8'), conn, enc_key=session.session_key,
+                signature_key=session.user_key_pair)
+
+    # decrypt file
+    decrypt_file(file_name, file_key)
+
+    # open file in editor
+    # return on closing the editor
+    open_file_editor(file_name)
+
+    if access == consts.rw:
+        # encrypt file
+        encrypt_file(file_name, file_key)
+
+        # send hash of edited file
+        new_file_hash = sha256sum(file_name)
+        secure_send(new_file_hash, conn, enc_key=session.session_key, signature_key=session.user_key_pair)
+
+        # send file
+        send_file(file_name, conn)
+
+    # remove temp file
+    fs.rm(file_name)
+
+    response = secure_receive(conn, session.session_key, session.server_pubkey, session.nonce)
     msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
 
@@ -156,3 +209,13 @@ def get_file_name_and_path(session: Session, filepath: str) -> Tuple[str, str]:
     file_name = path_args[-1]
     file_path = '/'.join(path_args[:-1]) if path_args[:-1] else session.current_path
     return file_path, file_name
+
+
+# todo is working for windows ?
+def open_file_editor(file_name: str):
+    if hasattr(os, "startfile"):
+        os.startfile(file_name)
+    elif shutil.which("vim"):
+        Popen(["vim", file_name]).wait()
+    elif "EDITOR" in os.environ:
+        Popen([os.environ["EDITOR"], file_name]).wait()

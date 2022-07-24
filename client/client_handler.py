@@ -20,7 +20,7 @@ def handle_client(session: Session, server: DefaultMunch):
             raise e
 
 
-def handle_client_cli(session: Session, conn: socket):
+def handle_client_cli(session: Session, conn: socket.socket):
     while True:
         try:
             cmd = input().strip()
@@ -39,16 +39,16 @@ def handle_client_cli(session: Session, conn: socket):
             # todo check regex
             if re.compile('test').match(cmd):
                 print(test_aes(session, cmd, conn))
-            
+
             elif re.compile('^mkdir ').match(cmd):
                 print(mkdir_cmd(session, cmd, conn))
-            
+
             elif re.compile('^ls').match(cmd):
                 print(ls_cmd(session, cmd, conn))
-            
+
             elif re.compile('^cd ').match(cmd):
                 print(cd_cmd(session, cmd, conn))
-            
+
             elif re.compile('^rm ').match(cmd):
                 print(rm_cmd(session, cmd, conn))
 

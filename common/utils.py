@@ -1,5 +1,8 @@
 import binascii
 import hashlib
+import os
+
+import tqdm as tqdm
 from Crypto.Random import get_random_bytes
 from Crypto.PublicKey.RSA import RsaKey
 from Crypto.Signature.pkcs1_15 import PKCS115_SigScheme
@@ -26,6 +29,41 @@ AES_M_LEN = conf['aes']['M_LEN']
 
 def recvall(sock):
     return sock.recv(BUFF_SIZE)
+
+
+def send_file(filename: str, conn: socket.socket):
+    with open(filename, "rb") as file:
+        while True:
+            # read the bytes from the file
+            bytes_read = file.read(BUFF_SIZE)
+            if not bytes_read:
+                # file transmitting is done
+                break
+            # we use sendall to assure transmission in
+            # busy networks
+            conn.sendall(bytes_read)
+        conn.sendall(consts.EOF)
+
+
+def receive_file(filename: str, conn: socket.socket):
+    # start receiving the file from the socket
+    # and writing to the file stream
+    with open(filename, "wb") as file:
+        while True:
+            # read 1024 bytes from the socket (receive)
+            bytes_read = conn.recv(BUFF_SIZE)
+            if not bytes_read:
+                # nothing is received
+                # file transmitting is done
+                break
+            # check EOF flag comes in ...
+            if bytes_read.endswith(consts.EOF):
+                # clear EOF flag
+                bytes_read = bytes_read.removesuffix(consts.EOF)
+                # write to the file the bytes we just received
+                file.write(bytes_read)
+                break
+            file.write(bytes_read)
 
 
 def int_to_bytes(number: int) -> bytes:
@@ -129,7 +167,7 @@ def secure_reply(msg: bytes, conn: socket.socket, enc_key: Union[RsaKey, bytes],
     secure_send(msg, conn, enc_key=enc_key, signature_key=sign_key)
 
 
-def secure_receive(conn: socket.socket, enc_key: Union[RsaKey, bytes], sign_key: RsaKey = None,
+def secure_receive(conn: socket.socket, enc_key: Union[RsaKey, bytes], signature_key: RsaKey = None,
                    nonce: str = '') -> bytes:
     encrypted_packet = recvall(conn)
     if not encrypted_packet:
@@ -140,12 +178,12 @@ def secure_receive(conn: socket.socket, enc_key: Union[RsaKey, bytes], sign_key:
     else:
         packet = decrypt_aes(encrypted_packet, enc_key)
     # check signature
-    if sign_key is not None:
-        check_signature(packet, sign_key)
+    if signature_key is not None:
+        check_signature(packet, signature_key)
     # check nonce
     if nonce:
         packet_without_signature = packet
-        if sign_key:
+        if signature_key:
             packet_without_signature = consts.packet_delimiter_byte.join(
                 packet.split(consts.packet_delimiter_byte)[:-1])
         check_nonce(packet_without_signature, nonce)
@@ -153,8 +191,38 @@ def secure_receive(conn: socket.socket, enc_key: Union[RsaKey, bytes], sign_key:
     return consts.packet_delimiter_byte.join(packet.split(consts.packet_delimiter_byte)[:-1])
 
 
-def encrypt_fernet(arg: str, key: bytes) -> bytes:
-    return Fernet(key).encrypt(arg.encode('utf-8'))
+def encrypt_file(file_name: str, key: bytes):
+    # using the generated key
+    fernet = Fernet(key)
+    # opening the original file to encrypt
+    with open(file_name, 'rb') as file:
+        original = file.read()
+    # check if file is empty
+    if not original:
+        return
+    # encrypting the file
+    encrypted = fernet.encrypt(original)
+    # opening the file in write mode and
+    # writing the encrypted data
+    with open(file_name, 'wb') as encrypted_file:
+        encrypted_file.write(encrypted)
+
+
+def decrypt_file(file_name: str, key: bytes):
+    # using the key
+    fernet = Fernet(key)
+    # opening the encrypted file
+    with open(file_name, 'rb') as enc_file:
+        encrypted = enc_file.read()
+    # check if file is empty
+    if not encrypted:
+        return
+    # decrypting the file
+    decrypted = fernet.decrypt(encrypted)
+    # opening the file in write mode and
+    # writing the decrypted data
+    with open(file_name, 'wb') as dec_file:
+        dec_file.write(decrypted)
 
 
 def sha256hash(message: bytes) -> bytes:

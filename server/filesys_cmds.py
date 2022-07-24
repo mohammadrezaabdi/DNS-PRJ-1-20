@@ -1,10 +1,11 @@
 import base64
 import json
 from operator import and_, or_
-
+import consts
 from munch import DefaultMunch
-
-from common.utils import sha256sum, sha256hash
+from socket import socket
+from common.utils import *
+from common.consts import *
 from database import get_db
 from model import Entity, Type, ACL, Access
 from session import Session
@@ -73,6 +74,7 @@ def mkdir(path: str, session: Session) -> str:
     return ls_handler([], session)
 
 
+# todo rm file with fsspec
 def rm_handler(args: list[str], session: Session) -> str:
     if not len(args) in (1, 2):
         return "Incorrect args!"
@@ -157,6 +159,7 @@ def check_path_for_user(path, session: Session):
     return False
 
 
+# todo show file different from path (by adding /)
 def ls_handler(args: list[str], session: Session) -> str:
     if len(args) > 1:
         return "Incorrect args!"
@@ -187,38 +190,107 @@ def touch_handler(args: list[str], session: Session) -> str:
     file_key = base64.b64decode(args[2])
 
     # todo create path if necessary
+    # todo handle relative paths
 
     # check if user created the same file with same path before
-    if db.query(Entity).filter(
-            Entity.path == path and Entity.name == file_name and Entity.owner.id == session.user.id).first():
-        return "File Exists"
+    # or another user shared same file with them
+    if db.query(
+            Entity,
+            ACL
+    ).filter(
+        Entity.path == path
+    ).filter(
+        Entity.name == file_name
+    ).filter(
+        Entity.id == ACL.entity_id
+    ).filter(
+        ACL.user_id == session.user.id
+    ).first():
+        return "file exists or same file shared with you"
 
-    # create file
-    filesys_path = ROOT_PATH + get_filesys_path(path, file_name, session.user.id)
+    # create file to database
+    file = Entity(name=file_name, path=path, entity_type=Type.file, owner_key=file_key, owner_id=session.user.id)
+
+    # create file in filesystem
+    filesys_path = get_filesys_path(file)
     fs.touch(filesys_path)
+    file.hash = sha256sum(filesys_path)
 
     # save file to database
-    db_entity = Entity(name=file_name, path=path, hash=sha256sum(filesys_path),
-                       entity_type=Type.file, owner_key=file_key, owner_id=session.user.id)
-    db.add(db_entity)
+    db.add(file)
     db.commit()
-    db.refresh(db_entity)
+    db.refresh(file)
 
-    db_acl = ACL(entity_id=db_entity.id, user_id=session.user.id,
-                 access=Access.read_write, share_key=file_key)
-    db.add(db_acl)
+    # add access list
+    acl = ACL(entity_id=file.id, user_id=session.user.id, access=Access.read_write, share_key=file_key)
+    db.add(acl)
     db.commit()
-    db.refresh(db_acl)
+    db.refresh(acl)
 
     return "file created successfully"
 
 
-def vim_handler(args: list[str], session: Session) -> str:
-    # todo check hash
-    # todo check file not exists
+def vim_handler(args: list[str], session: Session, conn: socket, server_key_pair: RsaKey) -> str:
     # todo check user have access
-    pass
+    # todo handle relative paths
+    global fs
+    db = next(get_db())
+    path = args[0] if args[0] else session.current_path
+    file_name = args[1]
+
+    # find file via path
+    q = db.query(
+        Entity,
+        ACL
+    ).filter(
+        Entity.path == path
+    ).filter(
+        Entity.name == file_name
+    ).filter(
+        ACL.user_id == session.user.id
+    ).first()
+    if not q:
+        return file_not_exists
+    file, acl = q
+
+    # check physical file exists
+    filesys_path = get_filesys_path(file)
+    if not fs.exists(filesys_path):
+        return file_not_exists
+
+    # check file hash
+    if file.hash != sha256sum(filesys_path):
+        return file_corrupted_err
+
+    # send [access + encryption key + file hash]
+    packet = consts.packet_delimiter_byte.join([acl.access.name.encode('utf-8'), acl.share_key, file.hash])
+    secure_send(packet, conn, enc_key=session.session_key, signature_key=server_key_pair)
+
+    # send encrypted file
+    send_file(filesys_path, conn)
+    packet = secure_receive(conn, enc_key=session.session_key, signature_key=session.client_pubkey)
+    if packet.decode('utf-8') == file_received_corrupted_err:
+        return "Try again later"
+
+    if acl.access == Access.read:
+        return file_only_read
+
+    # get hash of file
+    new_file_hash = secure_receive(conn, enc_key=session.session_key, signature_key=session.client_pubkey)
+
+    # receive encrypted file
+    receive_file(filesys_path, conn)
+
+    if new_file_hash != sha256sum(filesys_path):
+        return file_received_corrupted_err
+
+    # update file hash
+    file.hash = new_file_hash
+    db.commit()
+    db.refresh(file)
+
+    return "File updated successfully"
 
 
-def get_filesys_path(path: str, file_name: str, owner_id: int) -> str:
-    return sha256hash((path + file_name + str(owner_id)).encode('utf-8')).decode('utf-8')
+def get_filesys_path(entity: Entity) -> str:
+    return ROOT_PATH + sha256hash((entity.path + entity.name + str(entity.owner_id)).encode('utf-8')).decode('utf-8')

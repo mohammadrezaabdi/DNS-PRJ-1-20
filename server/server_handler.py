@@ -52,7 +52,7 @@ def client_authentication(session: Session, server_key_pair: RsaKey, conn: socke
         raise Exception(consts.end_connection)
 
     # get client command packet (login or signup)
-    packet = secure_receive(enc_key=server_key_pair, sign_key=session.client_pubkey, conn=conn)
+    packet = secure_receive(enc_key=server_key_pair, signature_key=session.client_pubkey, conn=conn)
     cmd_args = packet.decode('utf-8').split(consts.packet_delimiter_str)
     cmd = ' '.join(cmd_args[:-1])
     logger.info('received command: ' + cmd)
@@ -84,7 +84,7 @@ def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
                         continue
 
                     # get command from client securely
-                    packet = secure_receive(enc_key=session.session_key, sign_key=session.client_pubkey, conn=conn)
+                    packet = secure_receive(enc_key=session.session_key, signature_key=session.client_pubkey, conn=conn)
                     cmd_args = packet.decode('utf-8').split(consts.packet_delimiter_str)
                     cmd = ' '.join(cmd_args[:-1])
                     logger.info('received command: ' + cmd)
@@ -111,7 +111,7 @@ def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
                         msg = touch_handler(cmd_args[1:-1], session)
 
                     elif re.compile(r'^vim ').match(cmd):
-                        msg = vim_handler(cmd_args[1:-1], session)
+                        msg = vim_handler(cmd_args[1:-1], session, conn, server_key_pair)
 
                     # send message to client
                     secure_reply(msg.encode('utf-8'), conn, enc_key=session.session_key, sign_key=server_key_pair,

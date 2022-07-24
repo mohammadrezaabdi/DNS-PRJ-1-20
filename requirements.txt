@@ -10,7 +10,7 @@ pyaes==1.6.1
 pycparser==2.21
 pycryptodome==3.15.0
 pydantic==1.9.1
--e git+git@github.com:mohammadrezaabdi/DNS-PRJ-1-20.git@6404cd26f97389670c44315d7164dc5cf1b8fecf#egg=secure_filesystem
+-e git+git@github.com:mohammadrezaabdi/DNS-PRJ-1-20.git@c241aaf56f0166520ed3410b6dfe19a17a65a4ce#egg=secure_filesystem
 six==1.16.0
 SQLAlchemy==1.4.39
 typing-extensions==4.3.0
