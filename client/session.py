@@ -10,11 +10,11 @@ from Crypto.PublicKey import RSA
 from munch import DefaultMunch
 
 import consts
-import sys
-sys.path.append('../common')
-from utils import *
+# import sys
+# sys.path.append('../common')
+from common.utils import *
 
-with open('../config.json') as f:
+with open('config.json') as f:
     conf = json.load(f)
 
 KEY = DefaultMunch.fromDict(conf['keys'])
@@ -286,8 +286,8 @@ def open_file_editor(file_name: str):
 
 
 def check_server_public_key(server_pubkey: RsaKey):
-    # path = 'client/' + KEY.KNOWN_KEYS
-    path = './' + KEY.KNOWN_KEYS
+    path = 'client/' + KEY.KNOWN_KEYS
+    # path = './' + KEY.KNOWN_KEYS
     for file in os.listdir(path):
         if file.endswith(".pem"):
             with open(path + file, 'r') as key_file:

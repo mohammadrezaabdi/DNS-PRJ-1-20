@@ -17,7 +17,7 @@ import sys
 sys.path.append('../common')
 from utils import *
 
-with open('../config.json') as f:
+with open('config.json') as f:
     conf = json.load(f)
 
 FILE_SYSTEM = DefaultMunch.fromDict(conf['filesystem'])
