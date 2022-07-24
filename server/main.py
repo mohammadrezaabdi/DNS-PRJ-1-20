@@ -13,7 +13,7 @@ import sys
 log.init()
 logger = logging.getLogger("server")
 
-with open('config.json') as f:
+with open('../config.json') as f:
     conf = json.load(f)
 
 SERVER = DefaultMunch.fromDict(conf['server'])
@@ -28,7 +28,8 @@ def main():
     if len(sys.argv) > 1:
         path = sys.argv[1]
     else:
-        path = 'server/' + KEY.DEFAULT_PATH
+        # path = 'server/' + KEY.DEFAULT_PATH
+        path = './' + KEY.DEFAULT_PATH
     with open(str(path), 'r') as key_file:
         server_key_pair = RSA.import_key(key_file.read())
     # start server

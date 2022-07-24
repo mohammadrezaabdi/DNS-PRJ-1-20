@@ -1,3 +1,5 @@
+from struct import pack
+from consts import *
 import base64
 import shutil
 from subprocess import Popen
@@ -8,10 +10,11 @@ from Crypto.PublicKey import RSA
 from munch import DefaultMunch
 
 import consts
-from common.consts import *
-from common.utils import *
+import sys
+sys.path.append('../common')
+from utils import *
 
-with open('config.json') as f:
+with open('../config.json') as f:
     conf = json.load(f)
 
 KEY = DefaultMunch.fromDict(conf['keys'])
@@ -59,6 +62,38 @@ def ls_cmd(session: Session, cmd: str, conn: socket) -> str:
     return msg
 
 
+def share_cmd(session: Session, cmd: str, conn: socket) -> str:
+    # response = send_cmd_receive_message(session, cmd, conn)
+    secure_send_cmd_with_nonce(
+        session, cmd, conn, session.session_key, session.user_key_pair)
+    packet = secure_receive(conn, enc_key=session.session_key,
+                            signature_key=session.server_pubkey)
+
+    packet = packet.split(consts.packet_delimiter_byte)
+    if packet[0].decode('utf-8') == '0':
+        return packet[1].decode('utf-8')
+        # Error case
+    target_rsa_key = RSA.import_key(packet[1])
+
+    file_key = decrypt_rsa(packet[2], session.user_key_pair)
+    encrypted_file_key = str(encrypt_rsa(file_key, target_rsa_key))
+
+    secure_send_cmd_with_nonce(
+        session, encrypted_file_key, conn, session.session_key, session.user_key_pair)
+
+    packet = secure_receive(conn, enc_key=session.session_key,
+                            signature_key=session.server_pubkey)
+    res = (packet.split(consts.packet_delimiter_byte)[0].decode('utf-8'))
+    return res
+
+
+def revoke_cmd(session: Session, cmd: str, conn: socket) -> str:
+    response = send_cmd_receive_message(session, cmd, conn)
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
+    return msg
+   
+
+
 def touch_cmd(session: Session, cmd: str, conn: socket) -> str:
     # extract file path and file name
     cmd_args = cmd.split(' ')
@@ -69,7 +104,8 @@ def touch_cmd(session: Session, cmd: str, conn: socket) -> str:
     encrypted_key = encrypt_rsa(file_key, session.user_key_pair.publickey())
     # create final packet
     encrypted_key_str = str(base64.b64encode(encrypted_key), 'utf-8')
-    final_cmd = ' '.join([cmd_args[0], file_path, file_name, encrypted_key_str])
+    final_cmd = ' '.join(
+        [cmd_args[0], file_path, file_name, encrypted_key_str])
     response = send_cmd_receive_message(session, final_cmd, conn)
     msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
@@ -80,9 +116,11 @@ def vim_cmd(session: Session, cmd: str, conn: socket.socket) -> str:
     cmd_args = cmd.split(' ')
     file_path, file_name = get_file_name_and_path(session, cmd_args[1])
     final_cmd = ' '.join([cmd_args[0], file_path, file_name])
-    secure_send_cmd_with_nonce(session, final_cmd, conn, session.session_key, session.user_key_pair)
+    secure_send_cmd_with_nonce(
+        session, final_cmd, conn, session.session_key, session.user_key_pair)
     # get file key and access
-    packet = secure_receive(conn, enc_key=session.session_key, signature_key=session.server_pubkey)
+    packet = secure_receive(conn, enc_key=session.session_key,
+                            signature_key=session.server_pubkey)
     packet_args = packet.split(consts.packet_delimiter_byte)
     msg = packet_args[0].decode('utf-8')
     if msg in [file_not_exists, file_corrupted_err]:
@@ -92,7 +130,8 @@ def vim_cmd(session: Session, cmd: str, conn: socket.socket) -> str:
     file_hash = packet_args[2]
 
     # dummy
-    secure_send(b'DUMMY', conn, enc_key=session.session_key, signature_key=session.user_key_pair)
+    secure_send(b'DUMMY', conn, enc_key=session.session_key,
+                signature_key=session.user_key_pair)
 
     # receive file
     receive_file(file_name, conn)
@@ -118,14 +157,17 @@ def vim_cmd(session: Session, cmd: str, conn: socket.socket) -> str:
         encrypt_file(file_name, file_key)
 
         # dummy
-        secure_receive(conn, enc_key=session.session_key, signature_key=session.server_pubkey)
+        secure_receive(conn, enc_key=session.session_key,
+                       signature_key=session.server_pubkey)
 
         # send hash of edited file
         new_file_hash = sha256sum(file_name)
-        secure_send(new_file_hash, conn, enc_key=session.session_key, signature_key=session.user_key_pair)
+        secure_send(new_file_hash, conn, enc_key=session.session_key,
+                    signature_key=session.user_key_pair)
 
         # dummy
-        secure_receive(conn, enc_key=session.session_key, signature_key=session.server_pubkey)
+        secure_receive(conn, enc_key=session.session_key,
+                       signature_key=session.server_pubkey)
 
         # send file
         send_file(file_name, conn)
@@ -133,7 +175,8 @@ def vim_cmd(session: Session, cmd: str, conn: socket.socket) -> str:
     # remove temp file
     fs.rm(file_name)
 
-    response = secure_receive(conn, session.session_key, session.server_pubkey, session.nonce)
+    response = secure_receive(
+        conn, session.session_key, session.server_pubkey, session.nonce)
     msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
 
@@ -181,7 +224,8 @@ def signup(session: Session, cmd: str, conn: socket) -> str:
         raise Exception(consts.end_connection)
 
     server_alive = send_cmd_receive_message(session, cmd, conn)
-    hello_server_args = server_alive.decode('utf-8').split(consts.packet_delimiter_str)
+    hello_server_args = server_alive.decode(
+        'utf-8').split(consts.packet_delimiter_str)
 
     # return server message
     return hello_server_args[0]
@@ -199,9 +243,11 @@ def secure_send_cmd_with_nonce(session: Session, cmd: str, conn: socket, enc_key
 
 def send_cmd_receive_message(session: Session, cmd: str, conn: socket) -> bytes:
     if not session.session_key:
-        secure_send_cmd_with_nonce(session, cmd, conn, session.server_pubkey, session.user_key_pair)
+        secure_send_cmd_with_nonce(
+            session, cmd, conn, session.server_pubkey, session.user_key_pair)
     else:
-        secure_send_cmd_with_nonce(session, cmd, conn, session.session_key, session.user_key_pair)
+        secure_send_cmd_with_nonce(
+            session, cmd, conn, session.session_key, session.user_key_pair)
 
     if not session.session_key:
         return secure_receive(conn, session.user_key_pair, session.server_pubkey, session.nonce)
@@ -224,7 +270,8 @@ def share_pubkeys(session: Session, conn: socket):
 def get_file_name_and_path(session: Session, filepath: str) -> Tuple[str, str]:
     path_args = filepath.split('/')
     file_name = path_args[-1]
-    file_path = '/'.join(path_args[:-1]) if path_args[:-1] else session.current_path
+    file_path = '/'.join(path_args[:-1]
+                         ) if path_args[:-1] else session.current_path
     return file_path, file_name
 
 
@@ -239,7 +286,8 @@ def open_file_editor(file_name: str):
 
 
 def check_server_public_key(server_pubkey: RsaKey):
-    path = 'client/' + KEY.KNOWN_KEYS
+    # path = 'client/' + KEY.KNOWN_KEYS
+    path = './' + KEY.KNOWN_KEYS
     for file in os.listdir(path):
         if file.endswith(".pem"):
             with open(path + file, 'r') as key_file:

@@ -7,7 +7,7 @@ from time import gmtime, strftime
 
 from session import Session
 
-with open('config.json') as f:
+with open('../config.json') as f:
     conf = json.load(f)
 
 SERVER = DefaultMunch.fromDict(conf['server'])
@@ -22,7 +22,8 @@ def main():
     else:
         # generate keys and save to file
         session.user_key_pair = RSA.generate(3072)
-        with open('client/' + KEY.DEFAULT_PATH + f'key_{strftime("%Y-%m-%d_%H-%M-%S", gmtime())}' + '.pem',
+        # with open('client/' + KEY.DEFAULT_PATH + f'key_{strftime("%Y-%m-%d_%H-%M-%S", gmtime())}' + '.pem',
+        with open('./' + KEY.DEFAULT_PATH + f'key_{strftime("%Y-%m-%d_%H-%M-%S", gmtime())}' + '.pem',
                   'wb') as key_file:
             key_file.write(session.user_key_pair.export_key('PEM'))
 

@@ -4,7 +4,8 @@ import os
 import pbkdf2
 from Crypto.PublicKey import RSA
 import sys
-from common.utils import *
+sys.path.append('../common')
+from utils import *
 
 
 class Session:

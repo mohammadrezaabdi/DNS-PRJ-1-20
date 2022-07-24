@@ -57,6 +57,12 @@ def handle_client_cli(session: Session, conn: socket.socket):
 
             elif re.compile('^vim ').match(cmd):
                 print(vim_cmd(session, cmd, conn))
+            
+            elif re.compile('^share ').match(cmd):
+                print(share_cmd(session, cmd, conn))
+                
+            elif re.compile('^revoke ').match(cmd):
+                print(revoke_cmd(session, cmd, conn))
             # todo other commands
 
         except EOFError:

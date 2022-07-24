@@ -9,8 +9,8 @@ from filesys_cmds import *
 import consts
 import traceback
 import sys
-
-from common.utils import *
+sys.path.append('../common')
+from utils import *
 
 log.init()
 logger = logging.getLogger("client")
@@ -109,9 +109,16 @@ def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
 
                     elif re.compile(r'^touch ').match(cmd):
                         msg = touch_handler(cmd_args[1:-1], session)
+                                        
 
                     elif re.compile(r'^vim ').match(cmd):
                         msg = vim_handler(cmd_args[1:-1], session, conn, server_key_pair)
+
+                    elif re.compile(r'^share ').match(cmd):
+                        msg = share_handler(cmd_args[1:-1], session , conn, server_key_pair)
+                    
+                    elif re.compile(r'^revoke ').match(cmd):
+                        msg = revoke_handler(cmd_args[1:-1], session)
 
                     # send message to client
                     secure_reply(msg.encode('utf-8'), conn, enc_key=session.session_key, sign_key=server_key_pair,
