@@ -17,7 +17,7 @@ KEY = DefaultMunch.fromDict(conf['keys'])
 def main():
     session = Session()
     if len(sys.argv) > 1:
-        with open(str('client/' + sys.argv[1]), 'r') as key_file:
+        with open(str(sys.argv[1]), 'r') as key_file:
             session.user_key_pair = RSA.import_key(key_file.read())
     else:
         # generate keys and save to file

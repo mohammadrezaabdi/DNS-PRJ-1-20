@@ -28,8 +28,8 @@ def main():
     if len(sys.argv) > 1:
         path = sys.argv[1]
     else:
-        path = KEY.DEFAULT_PATH
-    with open(str('server/' + path), 'r') as key_file:
+        path = 'server/' + KEY.DEFAULT_PATH
+    with open(str(path), 'r') as key_file:
         server_key_pair = RSA.import_key(key_file.read())
     # start server
     filesystem_server = Server(SERVER.IP, SERVER.PORT, server_key_pair, handle_client, logger)
