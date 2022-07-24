@@ -189,6 +189,7 @@ def touch_handler(args: list[str], session: Session) -> str:
     file_name = args[1]
     file_key = base64.b64decode(args[2])
 
+    # touch | path | filename | encrypted_file_key
     # todo create path if necessary
     # todo handle relative paths
 
@@ -246,6 +247,8 @@ def vim_handler(args: list[str], session: Session, conn: socket, server_key_pair
         Entity.path == path
     ).filter(
         Entity.name == file_name
+    ).filter(
+        Entity.id == ACL.entity_id
     ).filter(
         ACL.user_id == session.user.id
     ).first()

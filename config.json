@@ -8,7 +8,8 @@
     "ROOT_PATH": "datastore/"
   },
   "keys": {
-    "DEFAULT_PATH": "keys/"
+    "DEFAULT_PATH": "keys/key_pair.pem",
+    "KNOWN_KEYS": "known_keys/"
   },
   "aes": {
     "M_LEN": 256

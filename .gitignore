@@ -2,10 +2,8 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=visualstudiocode,python,pycharm
 
 source/server/*.db
-source/client/keys
 *.db
-keys
-datastore
+datastore/*
 .idea
 .vscode
 ### PyCharm ###
