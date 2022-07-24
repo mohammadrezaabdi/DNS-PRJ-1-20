@@ -17,14 +17,14 @@ logger = logging.getLogger("client")
 
 
 class Server:
-    def __init__(self, ip: str, port: str, handler: Callable[[Session, RSA.RsaKey, socket.socket], Any],
+    def __init__(self, ip: str, port: str, key: RsaKey, handler: Callable[[Session, RSA.RsaKey, socket.socket], Any],
                  logger: logging.Logger):
         self.ip = ip
         self.port = int(port)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.logger = logger
         self.handler = handler
-        self.key_pair = RSA.generate(3072)
+        self.key_pair = key
 
     def listen(self):
         self.logger.info("server process started")

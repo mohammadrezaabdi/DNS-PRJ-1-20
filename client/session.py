@@ -5,11 +5,16 @@ from typing import Tuple
 
 import fsspec
 from Crypto.PublicKey import RSA
+from munch import DefaultMunch
 
 import consts
 from common.consts import *
 from common.utils import *
 
+with open('config.json') as f:
+    conf = json.load(f)
+
+KEY = DefaultMunch.fromDict(conf['keys'])
 fs = fsspec.filesystem('file')
 
 
@@ -210,7 +215,10 @@ def share_pubkeys(session: Session, conn: socket):
 
     # server hello packet
     server_pubkey = recvall(conn)
-    session.server_pubkey = RSA.importKey(server_pubkey)
+    # check if client knows server
+    server_pubkey = RSA.importKey(server_pubkey)
+    check_server_public_key(server_pubkey)
+    session.server_pubkey = server_pubkey
 
 
 def get_file_name_and_path(session: Session, filepath: str) -> Tuple[str, str]:
@@ -228,3 +236,15 @@ def open_file_editor(file_name: str):
         Popen(["vim", file_name]).wait()
     elif "EDITOR" in os.environ:
         Popen([os.environ["EDITOR"], file_name]).wait()
+
+
+def check_server_public_key(server_pubkey: RsaKey):
+    path = 'client/' + KEY.KNOWN_KEYS
+    for file in os.listdir(path):
+        if file.endswith(".pem"):
+            with open(path + file, 'r') as key_file:
+                server_key_pair = RSA.import_key(key_file.read())
+                if server_key_pair.public_key().export_key().decode('utf-8') \
+                        == server_pubkey.export_key().decode('utf-8'):
+                    return
+    raise Exception(consts.server_unknown)

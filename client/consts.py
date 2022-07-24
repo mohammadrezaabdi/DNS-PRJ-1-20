@@ -21,3 +21,4 @@ file_received_corrupted_err = 'file received corrupted'
 file_received_success = 'file received successfully'
 file_only_read = "NOTICE: You can't Modify this file"
 file_not_exists = "No such file or directory"
+server_unknown = "server public key unknown"

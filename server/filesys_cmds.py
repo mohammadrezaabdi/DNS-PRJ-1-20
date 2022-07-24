@@ -189,6 +189,7 @@ def touch_handler(args: list[str], session: Session) -> str:
     file_name = args[1]
     file_key = base64.b64decode(args[2])
 
+    # touch | path | filename | encrypted_file_key
     # todo create path if necessary
     # todo handle relative paths
 
