@@ -11,6 +11,7 @@ SIGNUP = re.compile(r'^signup\s+\d+\s+\w+\s+\w+\s+[\w\W]+')
 login_success = "you've successfully logged in.\nuser id: {}\ngroup: {}\ncurrent path: {}"
 user_duplication_error = "user was duplicated."
 user_not_found = "user not found"
+public_key_invalid = "user public key is not valid"
 incorrect_password = "incorrect password"
 signup_success_msg = "user created successfully."
 internal_server_error_msg = "cannot operate your command successfully."

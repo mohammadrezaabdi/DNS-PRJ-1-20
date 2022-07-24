@@ -86,6 +86,9 @@ def vim_cmd(session: Session, cmd: str, conn: socket.socket) -> str:
     file_key = decrypt_rsa(packet_args[1], session.user_key_pair)
     file_hash = packet_args[2]
 
+    # dummy
+    secure_send(b'DUMMY', conn, enc_key=session.session_key, signature_key=session.user_key_pair)
+
     # receive file
     receive_file(file_name, conn)
 
@@ -109,9 +112,15 @@ def vim_cmd(session: Session, cmd: str, conn: socket.socket) -> str:
         # encrypt file
         encrypt_file(file_name, file_key)
 
+        # dummy
+        secure_receive(conn, enc_key=session.session_key, signature_key=session.server_pubkey)
+
         # send hash of edited file
         new_file_hash = sha256sum(file_name)
         secure_send(new_file_hash, conn, enc_key=session.session_key, signature_key=session.user_key_pair)
+
+        # dummy
+        secure_receive(conn, enc_key=session.session_key, signature_key=session.server_pubkey)
 
         # send file
         send_file(file_name, conn)

@@ -247,6 +247,8 @@ def vim_handler(args: list[str], session: Session, conn: socket, server_key_pair
     ).filter(
         Entity.name == file_name
     ).filter(
+        Entity.id == ACL.entity_id
+    ).filter(
         ACL.user_id == session.user.id
     ).first()
     if not q:
@@ -266,6 +268,9 @@ def vim_handler(args: list[str], session: Session, conn: socket, server_key_pair
     packet = consts.packet_delimiter_byte.join([acl.access.name.encode('utf-8'), acl.share_key, file.hash])
     secure_send(packet, conn, enc_key=session.session_key, signature_key=server_key_pair)
 
+    # dummy
+    secure_receive(conn, enc_key=session.session_key, signature_key=session.client_pubkey)
+
     # send encrypted file
     send_file(filesys_path, conn)
     packet = secure_receive(conn, enc_key=session.session_key, signature_key=session.client_pubkey)
@@ -275,8 +280,14 @@ def vim_handler(args: list[str], session: Session, conn: socket, server_key_pair
     if acl.access == Access.read:
         return file_only_read
 
+    # dummy
+    secure_send(b'DUMMY', conn, enc_key=session.session_key, signature_key=server_key_pair)
+
     # get hash of file
     new_file_hash = secure_receive(conn, enc_key=session.session_key, signature_key=session.client_pubkey)
+
+    # dummy
+    secure_send(b'DUMMY', conn, enc_key=session.session_key, signature_key=server_key_pair)
 
     # receive encrypted file
     receive_file(filesys_path, conn)

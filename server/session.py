@@ -25,6 +25,9 @@ def login(session: Session, args: list[str]) -> bytes:
         raise Exception(consts.user_not_found)
     # check user password
     authenticate(user, args[1])
+    # check public key
+    if session.client_pubkey.exportKey().decode('utf-8') != user.pub_key.decode('utf-8'):
+        raise Exception(consts.public_key_invalid)
     # add user to logged-in users
     session.user = user
     users[user.id] = session
