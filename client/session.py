@@ -63,26 +63,23 @@ def ls_cmd(session: Session, cmd: str, conn: socket) -> str:
 
 
 def share_cmd(session: Session, cmd: str, conn: socket) -> str:
-    # response = send_cmd_receive_message(session, cmd, conn)
     secure_send_cmd_with_nonce(
         session, cmd, conn, session.session_key, session.user_key_pair)
-    packet = secure_receive(conn, enc_key=session.session_key,
-                            signature_key=session.server_pubkey)
+
+    packet = secure_receive(conn, enc_key=session.session_key, signature_key=session.server_pubkey)
 
     packet = packet.split(consts.packet_delimiter_byte)
     if packet[0].decode('utf-8') == '0':
-        return packet[1].decode('utf-8')
         # Error case
+        return packet[1].decode('utf-8')
+
     target_rsa_key = RSA.import_key(packet[1])
-
     file_key = decrypt_rsa(packet[2], session.user_key_pair)
-    encrypted_file_key = str(encrypt_rsa(file_key, target_rsa_key))
+    encrypted_file_key = encrypt_rsa(file_key, target_rsa_key)
 
-    secure_send_cmd_with_nonce(
-        session, encrypted_file_key, conn, session.session_key, session.user_key_pair)
+    secure_send(encrypted_file_key, conn, enc_key=session.session_key, signature_key=session.user_key_pair)
 
-    packet = secure_receive(conn, enc_key=session.session_key,
-                            signature_key=session.server_pubkey)
+    packet = secure_receive(conn, enc_key=session.session_key, signature_key=session.server_pubkey, nonce=session.nonce)
     res = (packet.split(consts.packet_delimiter_byte)[0].decode('utf-8'))
     return res
 
@@ -91,7 +88,6 @@ def revoke_cmd(session: Session, cmd: str, conn: socket) -> str:
     response = send_cmd_receive_message(session, cmd, conn)
     msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
-   
 
 
 def touch_cmd(session: Session, cmd: str, conn: socket) -> str:
@@ -119,8 +115,7 @@ def vim_cmd(session: Session, cmd: str, conn: socket.socket) -> str:
     secure_send_cmd_with_nonce(
         session, final_cmd, conn, session.session_key, session.user_key_pair)
     # get file key and access
-    packet = secure_receive(conn, enc_key=session.session_key,
-                            signature_key=session.server_pubkey)
+    packet = secure_receive(conn, enc_key=session.session_key, signature_key=session.server_pubkey)
     packet_args = packet.split(consts.packet_delimiter_byte)
     msg = packet_args[0].decode('utf-8')
     if msg in [file_not_exists, file_corrupted_err]:

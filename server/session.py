@@ -4,8 +4,9 @@ import os
 import pbkdf2
 from Crypto.PublicKey import RSA
 import sys
-sys.path.append('../common')
-from utils import *
+# sys.path.append('../common')
+# from utils import *
+from common.utils import *
 
 
 class Session:
@@ -16,7 +17,7 @@ class Session:
         self.current_path: str = "/"
 
 
-users: dict[int, Session] = {}
+sessions: set[Session] = set()
 
 
 def login(session: Session, args: list[str]) -> bytes:
@@ -31,7 +32,6 @@ def login(session: Session, args: list[str]) -> bytes:
         raise Exception(consts.public_key_invalid)
     # add user to logged-in users
     session.user = user
-    users[user.id] = session
     # generate session key from client password and random salt
     session.session_key = pbkdf2.PBKDF2(passphrase=user.password, salt=os.urandom(16)).read(32)
     # todo set group and default path

@@ -14,8 +14,9 @@ from session import Session
 from sqlalchemy import or_, and_
 import fsspec
 import sys
-sys.path.append('../common')
-from utils import *
+# sys.path.append('../common')
+# from utils import *
+from common.utils import *
 
 with open('config.json') as f:
     conf = json.load(f)
@@ -187,7 +188,7 @@ def ls_handler(args: list[str], session: Session) -> str:
 
 
 def share_handler(args: list[str], session: Session, conn: socket, server_key_pair: RsaKey) -> str:
-    if len(args) != 2:
+    if len(args) > 3:
         msg = str(consts.packet_delimiter_str.join(
             ['0', "Incorrect args!"]))
         return msg
@@ -202,6 +203,16 @@ def share_handler(args: list[str], session: Session, conn: socket, server_key_pa
         msg = str(consts.packet_delimiter_str.join(
             ['0', "Can NOT share anything with yourself!"]))
         return msg
+
+    # set accesses
+    access = Access.read
+    if len(args) == 3:
+        if args[2] == '-rw':
+            access = Access.read_write
+        elif args[2] != '-r':
+            msg = str(consts.packet_delimiter_str.join(
+                ['0', "Incorrect args!"]))
+            return msg
 
     db = next(get_db())
 
@@ -224,7 +235,7 @@ def share_handler(args: list[str], session: Session, conn: socket, server_key_pa
     user = db.query(
         User
     ).filter(
-        User.id == args[1]
+        User.id == int(args[1])
     ).first()
 
     if not user:
@@ -232,19 +243,32 @@ def share_handler(args: list[str], session: Session, conn: socket, server_key_pa
             ['0', "User does NOT exist!"]))
         return msg
 
-    packet = consts.packet_delimiter_byte.join(
-        ['1', user.pub_key, entity.owner_key])
-    secure_send(packet, conn, enc_key=session.session_key,
-                signature_key=server_key_pair)
+    # if file was shared with user before
+    acl = db.query(
+        ACL
+    ).filter(
+        ACL.user_id == int(args[1])
+    ).filter(
+        ACL.entity_id == entity.id
+    ).first()
+    if acl:
+        acl.access = access
+        db.commit()
+        db.refresh(acl)
 
-    file_key = secure_receive(
-        conn, enc_key=session.session_key, signature_key=session.client_pubkey)
+        msg = str(consts.packet_delimiter_str.join(
+            ['0', "Done!"]))
+        return msg
+
+    packet = consts.packet_delimiter_byte.join([b'1', user.pub_key, entity.owner_key])
+    secure_send(packet, conn, enc_key=session.session_key, signature_key=server_key_pair)
+
+    file_key = secure_receive(conn, enc_key=session.session_key, signature_key=session.client_pubkey)
 
     temp_session = Session()
     temp_session.user = user
     mkdir_handler([path], temp_session)
-    acl = ACL(entity_id=entity.id, user_id=temp_session.user.id,
-              access=Access.read, share_key=file_key)
+    acl = ACL(entity_id=entity.id, user_id=temp_session.user.id, access=access, share_key=file_key)
     db.add(acl)
     db.commit()
     db.refresh(acl)
@@ -289,6 +313,7 @@ def revoke_handler(args: list[str], session: Session) -> str:
 
     db.commit()
     return "Done!"
+
 
 def touch_handler(args: list[str], session: Session) -> str:
     global fs
