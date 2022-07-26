@@ -131,6 +131,10 @@ def vim_cmd(session: Session, cmd: str, conn: socket.socket) -> str:
     # receive file
     receive_file(file_name, conn)
 
+    # dummy
+    secure_send(b'DUMMY', conn, enc_key=session.session_key,
+                signature_key=session.user_key_pair)
+
     # check hash
     if file_hash != sha256sum(file_name):
         secure_send(consts.file_received_corrupted_err.encode('utf-8'), conn, enc_key=session.session_key,
@@ -166,6 +170,10 @@ def vim_cmd(session: Session, cmd: str, conn: socket.socket) -> str:
 
         # send file
         send_file(file_name, conn)
+
+        # dummy
+        secure_receive(conn, enc_key=session.session_key,
+                       signature_key=session.server_pubkey)
 
     # remove temp file
     fs.rm(file_name)

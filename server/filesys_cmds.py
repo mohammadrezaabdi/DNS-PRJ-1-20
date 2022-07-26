@@ -412,6 +412,11 @@ def vim_handler(args: list[str], session: Session, conn: socket, server_key_pair
 
     # send encrypted file
     send_file(filesys_path, conn)
+
+    # dummy
+    secure_receive(conn, enc_key=session.session_key,
+                   signature_key=session.client_pubkey)
+
     packet = secure_receive(conn, enc_key=session.session_key,
                             signature_key=session.client_pubkey)
     if packet.decode('utf-8') == file_received_corrupted_err:
@@ -434,6 +439,10 @@ def vim_handler(args: list[str], session: Session, conn: socket, server_key_pair
 
     # receive encrypted file
     receive_file(filesys_path, conn)
+
+    # dummy
+    secure_send(b'DUMMY', conn, enc_key=session.session_key,
+                signature_key=server_key_pair)
 
     if new_file_hash != sha256sum(filesys_path):
         return file_received_corrupted_err
