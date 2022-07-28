@@ -5,18 +5,14 @@ from operator import and_, or_
 import consts
 from munch import DefaultMunch
 from socket import socket
-# from common.utils import *
-# from common.consts import *
+from common.utils import *
+from common.consts import *
 from database import get_db
 from model import Entity, Type, ACL, Access, User
 from user import get_user
 from session import Session
 from sqlalchemy import or_, and_
 import fsspec
-import sys
-# sys.path.append('../common')
-# from utils import *
-from common.utils import *
 
 with open('config.json') as f:
     conf = json.load(f)
@@ -35,12 +31,14 @@ def mkdir_handler(args: list[str], session: Session) -> str:
     if len(args) != 1:
         return "Incorrect args!"
     path = args[0]
+    if not (path.startswith(".") or path.startswith("..") or path.startswith("/")):
+        path= session.current_path+"/"+path
     parents = path.split("/")
     parents[0] = "/"
     if len(parents) == 1:
         return "Incorrect path: '/'"
     for i in range(2, len(parents)):
-        print(mkdir('/' + '/'.join(parents[1:i]), session=session))
+        mkdir('/' + '/'.join(parents[1:i]), session=session)
     return mkdir('/' + '/'.join(parents[1:]), session=session)
 
 
@@ -80,16 +78,17 @@ def mkdir(path: str, session: Session) -> str:
 
     return ls_handler([], session)
 
-
-# todo rm file with fsspec
 def rm_handler(args: list[str], session: Session) -> str:
     if not len(args) in (1, 2):
         return "Incorrect args!"
     path: str
+    global fs
+    type_ = Type.directory
     if len(args) == 2 and args[0] == '-r':
         path = args[1]
     elif len(args) == 1:
         path = args[0]
+        type_ = Type.file
     else:
         return "Improper format"
     path = get_absolute_path(path, session)
@@ -97,12 +96,15 @@ def rm_handler(args: list[str], session: Session) -> str:
     name = path.split("/")[-1]
     path = '/'.join(path.split("/")[:-1])
     path = path if path != "" else "/"
+    path_like = path if path.endswith("/") else path+"/"
+    path_like += name
+    path_like = "{}%".format(path_like)
     db = next(get_db())
     result = db.query(ACL).join(Entity).filter(
-        or_((and_(Entity.name == name, Entity.path == path)), (
-            (and_(Entity.path.like(path + "/" + name), Entity.path != path)))
+        or_((and_(Entity.name == name, Entity.path == path)), 
+            (Entity.path.like(path_like))
             ),
-        # Entity.entity_type == type_,
+        or_(type_ == Type.directory , Entity.entity_type == type_),
         ACL.user_id == session.user.id,
         ACL.entity_id == Entity.id
     ).all()
@@ -111,9 +113,103 @@ def rm_handler(args: list[str], session: Session) -> str:
             ACL.entity_id == r.entity_id,
             ACL.user_id == r.user_id,
         ).delete()
+
+        entity = db.query(Entity).filter(
+            Entity.id == r.entity_id,
+            Entity.owner_id == r.user_id,
+        ).first()
+        if entity:
+            file_path = get_filesys_path(entity)
+            fs.rm_file(file_path)
+            db.query(Entity).filter(Entity.id == entity.id).delete()
+
     db.commit()
     return "Done"
 
+def mv_handler(args: list[str], session: Session) -> str:
+    if not len(args) in (2, 3):
+        return "Incorrect args!"
+    path_s: str
+    path_d: str
+    global fs
+    type_ = Type.directory
+    if len(args) == 3 and args[0] == '-r':
+        path_s = args[1]
+        path_d = args[2]
+
+    elif len(args) == 2:
+        path_s = args[0]
+        path_d = args[1]
+        type_ = Type.file
+    else:
+        return "Improper format"
+    path_s = get_absolute_path(path_s, session)
+    path_d = get_absolute_path(path_d, session)
+
+    name_s = path_s.split("/")[-1]
+    path_s = '/'.join(path_s.split("/")[:-1])
+    path_s = path_s if path_s != "" else "/"
+    path_s_like = path_s if path_s.endswith("/") else path_s+"/"
+    path_s_like += name_s
+    path_s_like = "{}%".format(path_s_like)
+    db = next(get_db())
+    result = db.query(ACL).join(Entity).filter(
+        or_((and_(Entity.name == name_s, Entity.path == path_s)), 
+            (Entity.path.like(path_s_like))
+            ),
+        or_(type_ == Type.directory , Entity.entity_type == type_),
+        ACL.user_id == session.user.id,
+        ACL.entity_id == Entity.id
+    ).all()
+
+    if type_==Type.directory:
+        mkdir_handler([path_d], session)
+    for r in result:       
+        entity = db.query(Entity).filter(
+            Entity.id == r.entity_id,
+            # Entity.owner_id == r.user_id,
+        ).first()
+        db_entity:Entity
+        if entity.path == path_s and entity.name == name_s and type_ == Type.directory:
+            continue
+        if type_ == Type.directory:
+            temp = entity.path.replace(path_s_like[:-1] , path_d , 1)
+            db_entity = Entity(name=entity.name, path=temp, hash=entity.hash,
+                    entity_type=entity.entity_type, owner_key=entity.owner_key, owner_id=entity.owner_id)
+        else:
+            name_d = path_d.split("/")[-1]
+            path_d = '/'.join(path_d.split("/")[:-1])
+            path_d = path_d if path_d != "" else "/"
+            temp = entity.path.replace(path_s_like[:-1] , path_d , 1)
+            db_entity = Entity(name=name_d, path=temp, hash=entity.hash,
+                    entity_type=entity.entity_type, owner_key=entity.owner_key, owner_id=entity.owner_id)
+        db.add(db_entity)
+        db.commit()
+        db.refresh(db_entity)
+
+        db_acl = ACL(entity_id=db_entity.id, user_id=session.user.id,
+                access=r.access, share_key=r.share_key)
+        db.add(db_acl)
+        db.commit()
+        db.refresh(db_acl)
+        
+        db.query(ACL).filter(
+            ACL.entity_id == r.entity_id,
+            ACL.user_id == r.user_id,
+        ).delete()
+
+        if (entity.entity_type == Type.file):
+            old_file = get_filesys_path(entity)
+            new_file = get_filesys_path(db_entity)
+            fs.copy(old_file , new_file)
+            if entity.owner_id == session.user.id and not db.query(ACL).filter(
+                ACL.user_id != session.user.id,
+                ACL.entity_id == entity.id).first():
+                fs.rm_file(old_file)
+                db.query(Entity).filter(Entity.id == entity.id).delete()
+
+    db.commit()
+    return "Done"
 
 def cd_handler(args: list[str], session: Session) -> str:
     if len(args) != 1:
@@ -136,11 +232,9 @@ def get_absolute_path(path: str, session: Session):
             continue
         elif temp == '..':
             temp_list = path.split("/")
-            print(temp_list)
             # temp_list = temp_list[:p-1]+temp_list[p+1:]
             temp_list = temp_list[:-1]
             path = '/'.join(temp_list)
-            print(path)
             continue
         else:
             path += "/" + temp
@@ -156,8 +250,13 @@ def get_absolute_path(path: str, session: Session):
 
 def check_path_for_user(path, session: Session):
     db = next(get_db())
-    if db.query(Entity, ACL).filter(
+    name = path.split("/")[-1]
+    path = "/".join(path.split("/")[:-1]) 
+    path = "/" if path == "" else path
+    if path== "/" or db.query(Entity, ACL).filter(
             Entity.path == path,
+            Entity.name == name,
+            Entity.entity_type == Type.directory,
             ACL.user_id == session.user.id,
             ACL.entity_id == Entity.id
     ).first():
@@ -316,11 +415,18 @@ def revoke_handler(args: list[str], session: Session) -> str:
 
 
 def touch_handler(args: list[str], session: Session) -> str:
+    if len(args) != 2:
+        msg = "Incorrect args!"
+        return msg
+
     global fs
     db = next(get_db())
-    path = args[0] if args[0] else session.current_path
-    file_name = args[1]
-    file_key = base64.b64decode(args[2])
+    path = get_absolute_path(args[0], session)
+
+    file_name = path.split("/")[-1]
+    path = '/'.join(path.split("/")[:-1])
+    path = path if path != "" else "/"
+    file_key = base64.b64decode(args[1])
 
     # touch | path | filename | encrypted_file_key
     # todo create path if necessary
@@ -342,6 +448,7 @@ def touch_handler(args: list[str], session: Session) -> str:
     ).first():
         return "file exists or same file shared with you"
 
+    mkdir_handler([path], session)
     # create file to database
     file = Entity(name=file_name, path=path, entity_type=Type.file,
                   owner_key=file_key, owner_id=session.user.id)
@@ -369,10 +476,21 @@ def touch_handler(args: list[str], session: Session) -> str:
 def vim_handler(args: list[str], session: Session, conn: socket, server_key_pair: RsaKey) -> str:
     # todo check user have access
     # todo handle relative paths
+    # global fs
+    # db = next(get_db())
+    # path = args[0] if args[0] else session.current_path
+    # file_name = args[1]
+    if len(args) != 1:
+        msg = "Incorrect args!"
+        return msg
+
     global fs
     db = next(get_db())
-    path = args[0] if args[0] else session.current_path
-    file_name = args[1]
+    path = get_absolute_path(args[0], session)
+
+    file_name = path.split("/")[-1]
+    path = '/'.join(path.split("/")[:-1])
+    path = path if path != "" else "/"
 
     # find file via path
     q = db.query(

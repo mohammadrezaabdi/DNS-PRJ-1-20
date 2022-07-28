@@ -55,6 +55,11 @@ def rm_cmd(session: Session, cmd: str, conn: socket) -> str:
     msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
 
+def mv_cmd(session: Session, cmd: str, conn: socket) -> str:
+    response = send_cmd_receive_message(session, cmd, conn)
+    msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
+    return msg
+
 
 def ls_cmd(session: Session, cmd: str, conn: socket) -> str:
     response = send_cmd_receive_message(session, cmd, conn)
@@ -93,15 +98,17 @@ def revoke_cmd(session: Session, cmd: str, conn: socket) -> str:
 def touch_cmd(session: Session, cmd: str, conn: socket) -> str:
     # extract file path and file name
     cmd_args = cmd.split(' ')
-    file_path, file_name = get_file_name_and_path(session, cmd_args[1])
+    # file_path, file_name = get_file_name_and_path(session, cmd_args[1])
     # generate encrypt file key
     file_key = Fernet.generate_key()
     # encrypt file key
     encrypted_key = encrypt_rsa(file_key, session.user_key_pair.publickey())
     # create final packet
     encrypted_key_str = str(base64.b64encode(encrypted_key), 'utf-8')
+    # final_cmd = ' '.join(
+    #     [cmd_args[0], file_path, file_name, encrypted_key_str])
     final_cmd = ' '.join(
-        [cmd_args[0], file_path, file_name, encrypted_key_str])
+        [cmd_args[0], cmd_args[1], encrypted_key_str])
     response = send_cmd_receive_message(session, final_cmd, conn)
     msg = response.split(consts.packet_delimiter_byte)[0].decode('utf-8')
     return msg
@@ -111,7 +118,7 @@ def vim_cmd(session: Session, cmd: str, conn: socket.socket) -> str:
     # extract file path and file name
     cmd_args = cmd.split(' ')
     file_path, file_name = get_file_name_and_path(session, cmd_args[1])
-    final_cmd = ' '.join([cmd_args[0], file_path, file_name])
+    final_cmd = ' '.join([cmd_args[0], cmd_args[1]])
     secure_send_cmd_with_nonce(
         session, final_cmd, conn, session.session_key, session.user_key_pair)
     # get file key and access

@@ -51,6 +51,9 @@ def handle_client_cli(session: Session, conn: socket.socket):
 
             elif re.compile('^rm ').match(cmd):
                 print(rm_cmd(session, cmd, conn))
+                
+            elif re.compile('^mv ').match(cmd):
+                print(mv_cmd(session, cmd, conn))
 
             elif re.compile('^touch ').match(cmd):
                 print(touch_cmd(session, cmd, conn))

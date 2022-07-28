@@ -108,6 +108,9 @@ def handle_client(session: Session, server_key_pair: RsaKey, conn: socket):
 
                 elif re.compile(r'^rm ').match(cmd):
                     msg = rm_handler(cmd_args[1:-1], session)
+                    
+                elif re.compile(r'^mv ').match(cmd):
+                    msg = mv_handler(cmd_args[1:-1], session)
 
                 elif re.compile(r'^touch ').match(cmd):
                     msg = touch_handler(cmd_args[1:-1], session)
