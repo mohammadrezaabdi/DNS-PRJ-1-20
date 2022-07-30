@@ -171,9 +171,12 @@ def mv_handler(args: list[str], session: Session) -> str:
         ).first()
         db_entity:Entity
         if entity.path == path_s and entity.name == name_s and type_ == Type.directory:
-            continue
-        if type_ == Type.directory:
-            temp = entity.path.replace(path_s_like[:-1] , path_d , 1)
+            temp = path_d
+            db_entity = Entity(name=entity.name, path=temp, hash=entity.hash,
+                    entity_type=entity.entity_type, owner_key=entity.owner_key, owner_id=entity.owner_id)
+        elif type_ == Type.directory:
+            # temp = entity.path.replace(path_s_like[:-1] , path_d , 1)
+            temp = path_d+entity.path
             db_entity = Entity(name=entity.name, path=temp, hash=entity.hash,
                     entity_type=entity.entity_type, owner_key=entity.owner_key, owner_id=entity.owner_id)
         else:
