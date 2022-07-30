@@ -183,8 +183,9 @@ def mv_handler(args: list[str], session: Session) -> str:
             name_d = path_d.split("/")[-1]
             path_d = '/'.join(path_d.split("/")[:-1])
             path_d = path_d if path_d != "" else "/"
-            temp = entity.path.replace(path_s_like[:-1] , path_d , 1)
-            db_entity = Entity(name=name_d, path=temp, hash=entity.hash,
+            # temp = entity.path.replace(path_s_like[:-1] , path_d , 1)
+            mkdir_handler([path_d], session)
+            db_entity = Entity(name=name_d, path=path_d, hash=entity.hash,
                     entity_type=entity.entity_type, owner_key=entity.owner_key, owner_id=entity.owner_id)
         db.add(db_entity)
         db.commit()
